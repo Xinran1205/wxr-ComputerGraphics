@@ -59,9 +59,13 @@ void draw(DrawingWindow &window) {
     glm::vec3 topRight(0, 0, 255);       // blue
     glm::vec3 bottomRight(0, 255, 0);    // green
     glm::vec3 bottomLeft(255, 255, 0);   // yellow
+    // leftSide is a list of 3D vectors that are interpolated between topLeft and bottomLeft
+    // rightSide is a list of 3D vectors that are interpolated between topRight and bottomRight
+    // They are 2 columns of colours that are interpolated from top to bottom
     std::vector<glm::vec3> leftSide = interpolateTripleFloats(topLeft, bottomLeft, window.height);
     std::vector<glm::vec3> rightSide = interpolateTripleFloats(topRight, bottomRight, window.height);
     for (size_t y = 0; y < window.height; y++) {
+        // for each row of the image, interpolate the colours between the left and right side.
         std::vector<glm::vec3> row = interpolateTripleFloats(leftSide[y], rightSide[y], window.width);
         for (size_t x = 0; x < window.width; x++) {
             glm::vec3 colour = row[x];
