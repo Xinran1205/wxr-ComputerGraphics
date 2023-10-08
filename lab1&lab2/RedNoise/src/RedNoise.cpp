@@ -37,7 +37,8 @@ void drawLineBresenham(DrawingWindow &window, CanvasPoint from, CanvasPoint to, 
     // if slope is less than 1, we step in x direction, otherwise we step in y direction
     if (dx >= dy) {
         int accumulatorError = 0;
-        for (int i = 0; i <= dx; i++) {
+        // very important, (size_t)x<window.width && (size_t)y<window.height, avoid x or y out of bound
+        for (int i = 0; i <= dx && (size_t)x<window.width && (size_t)y<window.height; i++) {
             window.setPixelColour(x, y, pixelColour);
             x += DirectionX;
             // error += dy/dx  , we need avoid using float, so we all multiply dx
@@ -51,7 +52,7 @@ void drawLineBresenham(DrawingWindow &window, CanvasPoint from, CanvasPoint to, 
         }
     } else {
         int accumulatorError = 0;
-        for (int i = 0; i <= dy; i++) {
+        for (int i = 0; i <= dy && (size_t)x<window.width && (size_t)y<window.height; i++) {
             window.setPixelColour(x, y, pixelColour);
             y += DirectionY;
             accumulatorError += dx;
@@ -66,10 +67,6 @@ void drawLineBresenham(DrawingWindow &window, CanvasPoint from, CanvasPoint to, 
 // drawLine by using interpolation
 void drawLineInterpolation(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour colour){
 
-    if (from.x > to.x || (from.x == to.x && from.y > to.y)) {
-        std::swap(from, to);
-    }
-
     int dx = to.x - from.x;
     int dy = to.y - from.y;
 
@@ -78,35 +75,186 @@ void drawLineInterpolation(DrawingWindow &window, CanvasPoint from, CanvasPoint 
     // Decide if we should step in x direction or y direction
     if (std::abs(dx) > std::abs(dy)) {
         float y = from.y;
-        // this slope is just interpolation, for example, we have dx = 100, dy = 50, separate dy into 100 parts,
-        // slope is actually the step
-        // for loop is 100 times, and each time y += 0.5
         float slope = (float)dy / (float)dx;
+        // this is very important to check the quadrant of the line
+        if (dx<0){
+            slope = -slope;
+        }
         int stepX = (dx > 0) ? 1 : -1;
-        for (int x = from.x; x != to.x; x += stepX) {
-            window.setPixelColour(x, round(y), packedColour);
+        for (int x = from.x; (stepX == 1) ? (x <= to.x) : (x >= to.x); x += stepX) {
+            // check the x and y value is in the window
+            if ((size_t)x >= 0 && (size_t)x < window.width &&
+                round(y) >= 0 && round(y) < window.height) {
+                window.setPixelColour(x, round(y), packedColour);
+            }
             y += slope;
         }
     } else {
         float x = from.x;
         float slope = (float)dx / (float)dy;
+        if (dy<0){
+            slope = -slope;
+        }
         int stepY = (dy > 0) ? 1 : -1;
-        for (int y = from.y; y != to.y; y += stepY) {
-            window.setPixelColour(round(x), y, packedColour);
+        for (int y = from.y; (stepY == 1) ? (y <= to.y) : (y >= to.y) ; y += stepY) {
+            if (round(x) >= 0 && round(x) < window.width &&
+                    (size_t)y >= 0 && (size_t)y < window.height) {
+                window.setPixelColour(round(x), y, packedColour);
+            }
             x += slope;
         }
     }
 }
 
 void drawTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour colour) {
-    drawLineBresenham(window, triangle[0], triangle[1], colour);
-    drawLineBresenham(window, triangle[1], triangle[2], colour);
-    drawLineBresenham(window, triangle[2], triangle[0], colour);
+    drawLineInterpolation(window, triangle[0], triangle[1], colour);
+    drawLineInterpolation(window, triangle[1], triangle[2], colour);
+    drawLineInterpolation(window, triangle[2], triangle[0], colour);
 }
 
 
 
+// return a list of 2D vectors that are the bounding box of the triangle
+std::vector<glm::vec2> findBoundingBox(CanvasTriangle triangle) {
+    std::vector<glm::vec2> result;
+    // just randomly initialize the value
+    int minX = triangle[0].x;
+    int maxX = triangle[0].x;
+    int minY = triangle[0].y;
+    int maxY = triangle[0].y;
+    for (int i = 1; i < 3; i++) {
+        if (triangle[i].x < minX) {
+            minX = triangle[i].x;
+        }
+        if (triangle[i].x > maxX) {
+            maxX = triangle[i].x;
+        }
+        if (triangle[i].y < minY) {
+            minY = triangle[i].y;
+        }
+        if (triangle[i].y > maxY) {
+            maxY = triangle[i].y;
+        }
+    }
+    result.push_back(glm::vec2(minX, minY));
+    result.push_back(glm::vec2(maxX, maxY));
+    return result;
+}
 
+glm::vec2 calculateTheLine(CanvasPoint p1, CanvasPoint p2) {
+    glm::vec2 result;
+    result.x = p2.x - p1.x;
+    result.y = p2.y - p1.y;
+    return result;
+}
+
+// return true if the point is inside the triangle
+bool isInTheTriangle(CanvasTriangle triangle, CanvasPoint p) {
+    //line V01
+    glm::vec2 line1 = calculateTheLine(triangle[0], triangle[1]);
+    //line V12
+    glm::vec2 line2 = calculateTheLine(triangle[1], triangle[2]);
+    //line V20
+    glm::vec2 line3 = calculateTheLine(triangle[2], triangle[0]);
+
+    // use cross product to determine if the point is inside the triangle
+
+    // Line Vp0
+    glm::vec2 vp0 = calculateTheLine(triangle[0], p);
+    // Line Vp1
+    glm::vec2 vp1 = calculateTheLine(triangle[1], p);
+    // Line Vp2
+    glm::vec2 vp2 = calculateTheLine(triangle[2], p);
+
+    float c0 = line1.x * vp0.y - line1.y * vp0.x;
+    float c1 = line2.x * vp1.y - line2.y * vp1.x;
+    float c2 = line3.x * vp2.y - line3.y * vp2.x;
+
+    if ((c0 >= 0 && c1 >= 0 && c2 >= 0) || (c0 <= 0 && c1 <= 0 && c2 <= 0)) {
+        return true;
+    }
+
+    return false;
+}
+
+void drawFilledTriangleUsingBoundingBox (DrawingWindow &window, CanvasTriangle triangle, Colour colour) {
+    std::vector<glm::vec2> boundingBox = findBoundingBox(triangle);
+    int minX = boundingBox[0].x;
+    int maxX = boundingBox[1].x;
+    int minY = boundingBox[0].y;
+    int maxY = boundingBox[1].y;
+
+    uint32_t pixelColour = (colour.red << 24) | (colour.green << 16) | (colour.blue << 8) | 0xFF;
+    // for each pixel in the bounding box, check if it is inside the triangle
+    for (int x = minX; x <= maxX; x++) {
+        for (int y = minY; y <= maxY; y++) {
+            CanvasPoint p(x, y);
+           if (isInTheTriangle(triangle, p)) {
+                window.setPixelColour(x, y, pixelColour);
+            }
+        }
+    }
+}
+
+// using interpolation to draw filled triangle
+// BUG should be fixed(segmentation fault)
+void drawFilledTriangle (DrawingWindow &window, CanvasTriangle triangle, Colour colour) {
+    CanvasPoint bottom = triangle[0];
+    CanvasPoint middle = triangle[1];
+    CanvasPoint top = triangle[2];
+
+    uint32_t packedColour = (255 << 24) | (colour.red << 16) | (colour.green << 8) | colour.blue;
+
+    // sort the points by y value
+    if (bottom.y > middle.y) {
+        std::swap(bottom, middle);
+    }
+    if (bottom.y > top.y) {
+        std::swap(bottom, top);
+    }
+    if (middle.y > top.y) {
+        std::swap(middle, top);
+    }
+    // now bottom.y <= middle.y <= top.y
+
+    // Calculate lines
+    // This value is the list of the x value of the start/end line between bottom and top
+    std::vector<float> xValuesBottomToTop = interpolateSingleFloats(bottom.x, top.x, top.y - bottom.y + 1);
+    std::vector<float> xValuesBottomToMiddle = interpolateSingleFloats(bottom.x, middle.x, middle.y - bottom.y + 1);
+    std::vector<float> xValuesMiddleToTop = interpolateSingleFloats(middle.x, top.x, top.y - middle.y + 1);
+
+    // Rasterize top half triangle (from middle to top)
+    for (int i = 0; i < top.y - middle.y + 1; i++) {
+        int y = middle.y + i;
+        int x_start = xValuesMiddleToTop[i];
+        int x_end = xValuesBottomToTop[middle.y - bottom.y + i];
+        if (x_start > x_end) std::swap(x_start, x_end); // ensure x_start <= x_end
+
+        // Draw horizontal line from x_start to x_end
+        for (int x = x_start; x <= x_end; x++) {
+            if (x >= 0 && (size_t)x < window.width &&
+                (size_t)y >= 0 && (size_t)y < window.height) {
+                window.setPixelColour(x, y, packedColour);
+            }
+        }
+    }
+
+    // Rasterize bottom half triangle (from bottom to middle)
+    for (int i = 0; i < middle.y - bottom.y + 1; i++) {
+        int y = bottom.y + i;
+        int x_start = xValuesBottomToMiddle[i];
+        int x_end = xValuesBottomToTop[i];
+        if (x_start > x_end) std::swap(x_start, x_end); // ensure x_start <= x_end
+
+        // Draw horizontal line from x_start to x_end
+        for (int x = x_start; x <= x_end; x++) {
+            if (x >= 0 && (size_t)x < window.width &&
+                (size_t)y >= 0 && (size_t)y < window.height) {
+                window.setPixelColour(x, y, packedColour);
+            }
+        }
+    }
+}
 
 // Task 2: Single Element Numerical Interpolation
 // return a list of floats that are interpolated between the two floats
@@ -120,7 +268,7 @@ std::vector<float> interpolateSingleFloats(float from,float to, int numberOfValu
     return result;
 }
 
-//Task 3: Single Dimension Greyscale Interpolation
+//Task 3: Single Dimenson Greyscale Interpolation
 void drawTheGreyScale(DrawingWindow &window) {
     window.clearPixels();
     for (size_t y = 0; y < window.height; y++) {
@@ -184,12 +332,20 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
         }else if(event.key.keysym.sym == SDLK_DOWN) {
             std::cout << "DOWN" << std::endl;
         } else if (event.key.keysym.sym == SDLK_1) {
-            std::cout << "1 pressed, I dont know how to set this to u" << std::endl;
-            CanvasPoint p1(rand() % window.width, rand() % window.height);
-            CanvasPoint p2(rand() % window.width, rand() % window.height);
-            CanvasPoint p3(rand() % window.width, rand() % window.height);
+            std::cout << "1 is pressed, I dont know how to set this to u" << std::endl;
+            CanvasPoint p1(rand() % window.width-1, rand() % window.height-1);
+            CanvasPoint p2(rand() % window.width-1, rand() % window.height-1);
+            CanvasPoint p3(rand() % window.width-1, rand() % window.height-1);
             CanvasTriangle randomTriangle(p1, p2, p3);
             drawTriangle(window, randomTriangle, Colour(rand()%255, rand()%255, rand()%255));
+        } else if (event.key.keysym.sym == SDLK_2){
+            std::cout << "2 is pressed, I dont know how to set this to f" << std::endl;
+            CanvasPoint p1(rand() % window.width-1, rand() % window.height-1);
+            CanvasPoint p2(rand() % window.width-1, rand() % window.height-1);
+            CanvasPoint p3(rand() % window.width-1, rand() % window.height-1);
+
+            CanvasTriangle randomTriangle(p1, p2, p3);
+            drawFilledTriangle(window, randomTriangle, Colour(rand()%255, rand()%255, rand()%255));
         }
 	} else if (event.type == SDL_MOUSEBUTTONDOWN) {
 		window.savePPM("output.ppm");
