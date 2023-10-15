@@ -206,7 +206,7 @@ void drawFilledTriangleUsingBoundingBox (DrawingWindow &window, CanvasTriangle t
 }
 
 // using interpolation to draw filled triangle
-// BUG should be fixed(segmentation fault)
+// BUG should be fixed(segmentation fault),Very huge bug 15/10/2023
 void drawFilledTriangle (DrawingWindow &window, CanvasTriangle triangle, Colour colour) {
     CanvasPoint bottom = triangle[0];
     CanvasPoint middle = triangle[1];
@@ -240,8 +240,9 @@ void drawFilledTriangle (DrawingWindow &window, CanvasTriangle triangle, Colour 
     // Rasterize top half triangle (from middle to top)
     for (int i = 0; i < top.y - middle.y + 1; i++) {
         int y = middle.y + i;
-        int x_start = xValuesMiddleToTop[i];
-        int x_end = xValuesBottomToTop[middle.y - bottom.y + i];
+        //here， maybe some error to transfer float to int
+        int x_start = std::round(xValuesMiddleToTop[i]);
+        int x_end = std::round(xValuesBottomToTop[middle.y - bottom.y + i]);
         if (x_start > x_end) std::swap(x_start, x_end); // ensure x_start <= x_end
 
         float depthStart = depthValuesMiddleToTop[i];
@@ -263,15 +264,21 @@ void drawFilledTriangle (DrawingWindow &window, CanvasTriangle triangle, Colour 
     // Rasterize bottom half triangle (from bottom to middle)
     for (int i = 0; i < middle.y - bottom.y + 1; i++) {
         int y = bottom.y + i;
-        int x_start = xValuesBottomToMiddle[i];
-        int x_end = xValuesBottomToTop[i];
+        int x_start = std::round(xValuesBottomToMiddle[i]);
+        int x_end = std::round(xValuesBottomToTop[i]);
         if (x_start > x_end) std::swap(x_start, x_end); // ensure x_start <= x_end
+
+        float depthStart = depthValuesBottomToMiddle[i];
+        float depthEnd = depthValuesBottomToTop[i];
+        std::vector<float> XlineDepth = interpolateSingleFloats(depthStart, depthEnd, x_end - x_start + 1);
 
         // Draw horizontal line from x_start to x_end
         for (int x = x_start; x <= x_end; x++) {
+            float CurrentPointDepth = XlineDepth[x - x_start];
             if (x >= 0 && (size_t)x < window.width &&
-                (size_t)y >= 0 && (size_t)y < window.height) {
+                (size_t)y >= 0 && (size_t)y < window.height && CurrentPointDepth < zBuffer[y][x]) {
                 window.setPixelColour(x, y, packedColour);
+                zBuffer[y][x] = CurrentPointDepth;
             }
         }
     }
