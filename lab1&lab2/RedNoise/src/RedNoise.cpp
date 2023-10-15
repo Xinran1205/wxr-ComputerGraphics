@@ -4,16 +4,24 @@
 #include "glm/glm.hpp"
 #include "CanvasPoint.h"
 #include <Colour.h>
-#include <CanvasTriangle.h>
 #include <TextureMap.h>
+#include <ModelTriangle.h>
+#include <fstream>
+#include<iostream>
+#include <map>
+
 
 #define WIDTH 320
 #define HEIGHT 240
+
+std::vector<std::vector<float>> zBuffer;
 
 std::vector<float> interpolateSingleFloats(float from,float to, int numberOfValues);
 std::vector<glm::vec3> interpolateTripleFloats(glm::vec3 from, glm::vec3 to, int numberOfValues);
 void drawLineBresenham(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour colour);
 std::vector<TexturePoint> interpolateTexturePoints(TexturePoint start, TexturePoint end, int numValues);
+void renderPointCloud(DrawingWindow &window, const std::string& filename, glm::vec3 cameraPosition, float focalLength);
+
 // drawLine by using Bresenham's line algorithm
 void drawLineBresenham(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour colour){
     // we use absolute value to make sure the slope is always positive
@@ -218,6 +226,11 @@ void drawFilledTriangle (DrawingWindow &window, CanvasTriangle triangle, Colour 
     }
     // now bottom.y <= middle.y <= top.y
 
+    // interpolate the depth values
+    std::vector<float> depthValuesBottomToTop = interpolateSingleFloats(bottom.depth, top.depth, top.y - bottom.y + 1);
+    std::vector<float> depthValuesBottomToMiddle = interpolateSingleFloats(bottom.depth, middle.depth, middle.y - bottom.y + 1);
+    std::vector<float> depthValuesMiddleToTop = interpolateSingleFloats(middle.depth, top.depth, top.y - middle.y + 1);
+
     // Calculate lines
     // This value is the list of the x value of the start/end line between bottom and top
     std::vector<float> xValuesBottomToTop = interpolateSingleFloats(bottom.x, top.x, top.y - bottom.y + 1);
@@ -231,11 +244,18 @@ void drawFilledTriangle (DrawingWindow &window, CanvasTriangle triangle, Colour 
         int x_end = xValuesBottomToTop[middle.y - bottom.y + i];
         if (x_start > x_end) std::swap(x_start, x_end); // ensure x_start <= x_end
 
+        float depthStart = depthValuesMiddleToTop[i];
+        float depthEnd = depthValuesBottomToTop[middle.y - bottom.y + i];
+        std::vector<float> XlineDepth = interpolateSingleFloats(depthStart, depthEnd, x_end - x_start + 1);
+
         // Draw horizontal line from x_start to x_end
         for (int x = x_start; x <= x_end; x++) {
+            float CurrentPointDepth = XlineDepth[x - x_start];
+            // Z buffer is closer to us if the value is smaller
             if (x >= 0 && (size_t)x < window.width &&
-                (size_t)y >= 0 && (size_t)y < window.height) {
+                (size_t)y >= 0 && (size_t)y < window.height && CurrentPointDepth < zBuffer[y][x]) {
                 window.setPixelColour(x, y, packedColour);
+                zBuffer[y][x] = CurrentPointDepth;
             }
         }
     }
@@ -435,6 +455,9 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
             CanvasTriangle triangle(p1, p2, p3);
             TextureMap textureMap("../texture.ppm");
             drawTextureTriangle(window, triangle, textureMap);
+        }else if (event.key.keysym.sym == SDLK_4){
+            std::cout << "4 is pressed, I dont know how to set this to a" << std::endl;
+            renderPointCloud(window, "../cornell-box.obj", glm::vec3(0, 0, 4), 2);
         }
 	} else if (event.type == SDL_MOUSEBUTTONDOWN) {
 		window.savePPM("output.ppm");
@@ -451,27 +474,143 @@ void drawLine(DrawingWindow &window){
     drawLineBresenham(window, CanvasPoint(window.width/3, window.height/2), CanvasPoint(2*(window.width/3), window.height/2), Colour(255, 255, 255));
 }
 
+// return a hashmap from material name to colour
+std::map<std::string, Colour> loadMaterials(const std::string& filename) {
+    // Map from material name to colour.
+    std::map<std::string, Colour> materials;
+    std::ifstream file(filename);
+
+    if (!file.is_open()) {
+        std::cerr << "Failed to open the .mtl file!" << std::endl;
+        return materials;
+    }
+
+    std::string line;
+    std::string currentMaterialName;
+    while (std::getline(file, line)) {
+        auto tokens = split(line, ' ');
+        if (tokens[0] == "newmtl") {
+           currentMaterialName = tokens[1];
+        } else if (tokens[0] == "Kd") {
+            int r, g, b;
+            r = std::stoi(tokens[1]);
+            g = std::stoi(tokens[2]);
+            b = std::stoi(tokens[3]);
+            // Assuming the values in the mtl file are between 0 and 1.
+            materials[currentMaterialName] = Colour(currentMaterialName, r * 255, g * 255, b * 255);
+        }
+    }
+    return materials;
+}
+
+std::vector<ModelTriangle> loadOBJ(const std::string& filename, float scalingFactor) {
+    std::vector<ModelTriangle> triangles;
+    std::vector<glm::vec3> vertices;
+
+    // Open the file.
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open the file!" << std::endl;
+        return triangles;
+    }
+    // Load the materials from the .mtl file.
+    std::map<std::string, Colour> palette = loadMaterials("../cornell-box.mtl");
+    Colour currentColour;
+    std::string line;
+    while (std::getline(file, line)) {
+        // Tokenize the line for easier parsing.
+        auto tokens = split(line, ' ');
+
+        if (tokens[0]== "usemtl"){
+            currentColour = palette[tokens[1]];
+        }else if (tokens[0] == "v") {
+            // Check if line starts with 'v' (vertex).
+            // stof converts a string to a float.
+            glm::vec3 vertex(stof(tokens[1]), stof(tokens[2]), stof(tokens[3]));
+            vertex *= scalingFactor; // Apply scaling
+            vertices.push_back(vertex);
+
+            // Check if line starts with 'f' (face).
+        } else if (tokens[0] == "f") {
+            // Convert from 1-based index to 0-based index for vertices.
+            ModelTriangle triangle(vertices[stoi(tokens[1]) - 1],
+                                   vertices[stoi(tokens[2]) - 1],
+                                   vertices[stoi(tokens[3]) - 1],
+                                   currentColour);
+            triangles.push_back(triangle);
+        }
+    }
+    return triangles;
+}
+
+CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 vertexPosition, float focalLength) {
+    // Convert from model to camera coordinates
+    float x_rel = vertexPosition.x - cameraPosition.x;
+    float y_rel = vertexPosition.y - cameraPosition.y;
+    float z_rel = vertexPosition.z - cameraPosition.z;
+
+    // Compute the projection using the formulas
+    float canvasX = focalLength * (x_rel / z_rel);
+    // move the origin to the center of the screen
+    canvasX = canvasX + WIDTH / 2.0f;
+    float canvasY = focalLength * (y_rel / z_rel);
+    canvasY = canvasY + HEIGHT / 2.0f;
+
+    // z越大离得越远
+    return {canvasX, canvasY,vertexPosition.z};
+}
+
+
+void renderPointCloud(DrawingWindow &window, const std::string& filename, glm::vec3 cameraPosition, float focalLength) {
+    // Load the triangles from the OBJ file.
+    std::vector<ModelTriangle> triangles = loadOBJ(filename, 0.35);
+
+    //上面这一步没问题
+    // the point position is wrong
+    for (const auto& triangle : triangles) {
+        CanvasPoint projectedPoints[3];
+        for (int i = 0; i < 3; i++) {
+            projectedPoints[i] = getCanvasIntersectionPoint(cameraPosition, triangle.vertices[i], focalLength);
+            // Fix potential upside-down issue
+            projectedPoints[i].y = HEIGHT - projectedPoints[i].y;
+        }
+        drawFilledTriangle(window, CanvasTriangle(projectedPoints[0], projectedPoints[1], projectedPoints[2]),
+                     Colour(triangle.colour.red, triangle.colour.green, triangle.colour.blue));
+    }
+}
+
+std::vector<std::vector<float>> initialiseDepthBuffer(int width, int height) {
+    std::vector<std::vector<float>> depthBuffer;
+    for (int y = 0; y < height; y++) {
+        std::vector<float> row;
+        for (int x = 0; x < width; x++) {
+            row.push_back(std::numeric_limits<float>::infinity());
+        }
+        depthBuffer.push_back(row);
+    }
+    return depthBuffer;
+}
+
 int main(int argc, char *argv[]) {
-//    // test interpolateSingleFloats
-//    std::vector<float> result;
-//    result = interpolateSingleFloats(2.2, 8.5, 7);
-//    for(size_t i=0; i<result.size(); i++) std::cout << result[i] << " ";
-//    std::cout << std::endl;
-
-    // test interpolateTripleFloats
-//    std::vector<glm::vec3> result2;
-//    result2 = interpolateTripleFloats(glm::vec3(1.0, 4.0, 9.2), glm::vec3(4.0, 1.0, 9.8), 4);
-//    for(size_t i=0; i<result2.size(); i++) std::cout << result2[i].x << " " << result2[i].y << " " << result2[i].z << std::endl;
-//    std::cout << std::endl;
-
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
+
+    // test loadOBJ
+//    std::vector<ModelTriangle> triangles = loadOBJ("../cornell-box.obj", 0.35);
+//    for (size_t i = 0; i < triangles.size(); i++) {
+//        std ::cout <<triangles[i].colour << std::endl;
+//        std::cout << triangles[i] << std::endl;
+//
+//    }
+//    std::cout << "Loaded " << triangles.size() << " triangles" << std::endl;
+
+    zBuffer = initialiseDepthBuffer(window.width, window.height);
+
 	while (true) {
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
-        drawLine(window);
-//		draw(window);
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
 	}
+	return 0;
 }
