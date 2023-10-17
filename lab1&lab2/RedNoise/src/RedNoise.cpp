@@ -216,8 +216,8 @@ void renderPointCloud(DrawingWindow &window, const std::string& filename, glm::v
             projectedPoints[i] = getCanvasIntersectionPoint(cameraPosition, triangle.vertices[i], focalLength);
 //          window.setPixelColour(projectedPoints[i].x, projectedPoints[i].y, (255 << 24) | (255 << 16) | (255 << 8) | 255);
         }
-        drawTriangle(window, CanvasTriangle(projectedPoints[0], projectedPoints[1], projectedPoints[2]),
-                     Colour(triangle.colour.red, triangle.colour.green, triangle.colour.blue));
+//        drawTriangle(window, CanvasTriangle(projectedPoints[0], projectedPoints[1], projectedPoints[2]),
+//                     Colour(triangle.colour.red, triangle.colour.green, triangle.colour.blue));
 
         drawFilledTriangle(window, CanvasTriangle(projectedPoints[0], projectedPoints[1], projectedPoints[2]),
                      Colour(triangle.colour.red, triangle.colour.green, triangle.colour.blue));
@@ -239,7 +239,7 @@ CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 verte
     canvasY *= 150;
     canvasY = canvasY + HEIGHT / 2.0f;
 
-    return {canvasX, canvasY,1/vertexPosition.z};
+    return {canvasX, canvasY,vertexPosition.z};
 }
 
 std::vector<std::vector<float>> initialiseDepthBuffer(int width, int height) {
