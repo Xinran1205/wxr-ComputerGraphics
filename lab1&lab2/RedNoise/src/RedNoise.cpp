@@ -14,6 +14,31 @@
 #define WIDTH 320
 #define HEIGHT 240
 std::vector<std::vector<float>> zBuffer;
+glm::vec3 cameraPosition = glm::vec3(0, 0, 4);
+glm::mat3 cameraOrientation = glm::mat3(1.0f);
+float cameraSpeed = 5.0f;
+float cameraRotationSpeed = 0.05f;
+
+// Function to generate rotation matrix about the X axis
+glm::mat3 rotateX(float angle) {
+    glm::mat3 rotationMatrix = glm::mat3(
+            1, 0, 0,
+            0, cos(angle), -sin(angle),
+            0, sin(angle), cos(angle)
+    );
+    return rotationMatrix;
+}
+
+// Function to generate rotation matrix about the Y axis
+glm::mat3 rotateY(float angle) {
+    glm::mat3 rotationMatrix = glm::mat3(
+            cos(angle), 0, sin(angle),
+            0, 1, 0,
+            -sin(angle), 0, cos(angle)
+    );
+    return rotationMatrix;
+}
+
 
 void renderPointCloud(DrawingWindow &window, const std::string& filename, glm::vec3 cameraPosition, float focalLength);
 CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 vertexPosition, float focalLength);
@@ -166,7 +191,29 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
             std::cout << "UP" << std::endl;
         }else if(event.key.keysym.sym == SDLK_DOWN) {
             std::cout << "DOWN" << std::endl;
-        } else if (event.key.keysym.sym == SDLK_1) {
+        } else if (event.key.keysym.sym == SDLK_w) {
+            cameraPosition.z -= cameraSpeed;
+        } else if (event.key.keysym.sym == SDLK_s) {
+            cameraPosition.z += cameraSpeed;
+        } else if (event.key.keysym.sym == SDLK_a) {
+            cameraPosition.x -= cameraSpeed;
+        } else if (event.key.keysym.sym == SDLK_d) {
+            cameraPosition.x += cameraSpeed;
+        } else if (event.key.keysym.sym == SDLK_q) {
+            cameraPosition.y -= cameraSpeed;
+        } else if (event.key.keysym.sym == SDLK_e) {
+            cameraPosition.y += cameraSpeed;
+        }else if (event.key.keysym.sym == SDLK_i) { // Pitch up
+            //当角度为正时，这个旋转矩阵会使点围绕X轴进行逆时针旋转。这意味着如果您直接将这个旋转应用于场景中的一个物体，那么这个物体会像向下倾斜30度一样旋转
+            //因为这个应用在模型，模型向下等于抬头看
+            cameraOrientation = rotateX(cameraRotationSpeed) * cameraOrientation;
+        } else if (event.key.keysym.sym == SDLK_k) { // Pitch down
+            cameraOrientation = rotateX(-cameraRotationSpeed) * cameraOrientation;
+        } else if (event.key.keysym.sym == SDLK_j) { // Yaw left
+            cameraOrientation = rotateY(cameraRotationSpeed) * cameraOrientation;
+        } else if (event.key.keysym.sym == SDLK_l) { // Yaw right
+            cameraOrientation = rotateY(-cameraRotationSpeed) * cameraOrientation;
+        }else if (event.key.keysym.sym == SDLK_1) {
             std::cout << "1 is pressed, I dont know how to set this to u" << std::endl;
             CanvasPoint p1(rand() % (window.width-1), rand() % (window.height-1));
             CanvasPoint p2(rand() % (window.width-1), rand() % (window.height-1));
@@ -195,7 +242,7 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
             drawTextureTriangle(window, triangle, textureMap);
         }else if (event.key.keysym.sym == SDLK_4){
             std::cout << "4 is pressed, I dont know how to set this to a" << std::endl;
-            renderPointCloud(window, "../cornell-box.obj", glm::vec3(0, 0, 4), 2);
+            renderPointCloud(window, "../cornell-box.obj", cameraPosition, 2);
         }
 	} else if (event.type == SDL_MOUSEBUTTONDOWN) {
 		window.savePPM("output.ppm");
@@ -225,21 +272,22 @@ void renderPointCloud(DrawingWindow &window, const std::string& filename, glm::v
 }
 
 CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 vertexPosition, float focalLength) {
+    // Rotate the translated vertex
+    glm::vec3 vertexPositionNew = cameraOrientation * vertexPosition;
+
     // Convert from model to camera coordinates
-    float x_rel = vertexPosition.x - cameraPosition.x;
-    float y_rel = vertexPosition.y - cameraPosition.y;
-    float z_rel = vertexPosition.z - cameraPosition.z;
+    glm::vec3 relativePosition = vertexPositionNew - cameraPosition;
 
     // Compute the projection using the formulas
-    float canvasX = focalLength * -(x_rel / z_rel);
+    float canvasX = focalLength * -(relativePosition[0] / relativePosition[2]);
     canvasX *= 150;
     // move the origin to the center of the screen
     canvasX = canvasX + WIDTH / 2.0f;
-    float canvasY = focalLength * (y_rel / z_rel);
+    float canvasY = focalLength * (relativePosition[1] / relativePosition[2]);
     canvasY *= 150;
     canvasY = canvasY + HEIGHT / 2.0f;
 
-    return {canvasX, canvasY,vertexPosition.z};
+    return {canvasX, canvasY, vertexPosition.z};
 }
 
 std::vector<std::vector<float>> initialiseDepthBuffer(int width, int height) {
@@ -257,15 +305,6 @@ std::vector<std::vector<float>> initialiseDepthBuffer(int width, int height) {
 int main(int argc, char *argv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
-
-    // test loadOBJ
-//    std::vector<ModelTriangle> triangles = loadOBJ("../cornell-box.obj", 0.35);
-//    for (size_t i = 0; i < triangles.size(); i++) {
-//        std ::cout <<triangles[i].colour << std::endl;
-//        std::cout << triangles[i] << std::endl;
-//
-//    }
-//    std::cout << "Loaded " << triangles.size() << " triangles" << std::endl;
 
     zBuffer = initialiseDepthBuffer(window.width, window.height);
 
