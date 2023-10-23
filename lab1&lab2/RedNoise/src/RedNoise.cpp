@@ -19,6 +19,10 @@ glm::mat3 cameraOrientation = glm::mat3(1.0f);
 float cameraSpeed = 5.0f;
 float cameraRotationSpeed = 0.05f;
 
+void renderPointCloud(DrawingWindow &window, const std::string& filename, float focalLength);
+CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 vertexPosition, float focalLength);
+std::vector<std::vector<float>> initialiseDepthBuffer(int width, int height);
+
 // Function to generate rotation matrix about the X axis
 glm::mat3 rotateX(float angle) {
     glm::mat3 rotationMatrix = glm::mat3(
@@ -39,58 +43,45 @@ glm::mat3 rotateY(float angle) {
     return rotationMatrix;
 }
 
+//this is the function to rotate the camera around the y axis， this is the movement of the camera, only change x and z
+glm::vec3 orbitCameraAroundY(glm::vec3 cameraPos, float angle, glm::vec3 ModelCenter) {
+    glm::vec3 translatedPosition = cameraPos - ModelCenter; // Translate to origin
 
-void renderPointCloud(DrawingWindow &window, const std::string& filename, glm::vec3 cameraPosition, float focalLength);
-CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 vertexPosition, float focalLength);
+    // Apply rotation
+    float newX = translatedPosition.x * cos(angle) - translatedPosition.z * sin(angle);
+    float newZ = translatedPosition.x * sin(angle) + translatedPosition.z * cos(angle);
 
-// drawLine by using interpolation
-void drawLineInterpolation(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour colour){
+    // Translate back to the original position
+    return glm::vec3(newX, cameraPos.y, newZ) ;
+}
 
-    int dx = to.x - from.x;
-    int dy = to.y - from.y;
+//middle in Axis-Aligned Bounding Box (AABB)
+glm::vec3 calculateModelCenter(const std::vector<ModelTriangle>& triangles) {
+    glm::vec3 minCoords = glm::vec3(std::numeric_limits<float>::max());
+    glm::vec3 maxCoords = glm::vec3(std::numeric_limits<float>::lowest());
 
-    uint32_t packedColour = (255 << 24) | (colour.red << 16) | (colour.green << 8) | colour.blue;
+    for (const auto& triangle : triangles) {
+        for (const auto& vertex : triangle.vertices) {
+            minCoords.x = std::min(minCoords.x, vertex.x);
+            minCoords.y = std::min(minCoords.y, vertex.y);
+            minCoords.z = std::min(minCoords.z, vertex.z);
 
-    // Decide if we should step in x direction or y direction
-    if (std::abs(dx) > std::abs(dy)) {
-        float y = from.y;
-        float slope = (float)dy / (float)dx;
-        // this is very important to check the quadrant of the line
-        if (dx<0){
-            slope = -slope;
-        }
-        int stepX = (dx > 0) ? 1 : -1;
-        for (int x = from.x; (stepX == 1) ? (x <= to.x) : (x >= to.x); x += stepX) {
-            // check the x and y value is in the window
-            if ((size_t)x >= 0 && (size_t)x < window.width &&
-                round(y) >= 0 && round(y) < window.height) {
-                window.setPixelColour(x, round(y), packedColour);
-            }
-            y += slope;
-        }
-    } else {
-        float x = from.x;
-        float slope = (float)dx / (float)dy;
-        if (dy<0){
-            slope = -slope;
-        }
-        int stepY = (dy > 0) ? 1 : -1;
-        for (int y = from.y; (stepY == 1) ? (y <= to.y) : (y >= to.y) ; y += stepY) {
-            if (round(x) >= 0 && round(x) < window.width &&
-                    (size_t)y >= 0 && (size_t)y < window.height) {
-                window.setPixelColour(round(x), y, packedColour);
-            }
-            x += slope;
+            maxCoords.x = std::max(maxCoords.x, vertex.x);
+            maxCoords.y = std::max(maxCoords.y, vertex.y);
+            maxCoords.z = std::max(maxCoords.z, vertex.z);
         }
     }
+
+    return (minCoords + maxCoords) / 2.0f;
 }
 
-void drawTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour colour) {
-    drawLineInterpolation(window, triangle[0], triangle[1], colour);
-    drawLineInterpolation(window, triangle[1], triangle[2], colour);
-    drawLineInterpolation(window, triangle[2], triangle[0], colour);
-}
+glm::mat3 lookAt(glm::vec3 target) {
+    glm::vec3 forward = glm::normalize(cameraPosition - target);
+    glm::vec3 right = glm::normalize(glm::cross(glm::vec3(0, 1, 0), forward));
+    glm::vec3 up = glm::cross(-forward, right);
 
+    return glm::mat3(right, up, -forward);
+}
 
 // using interpolation to draw filled triangle
 // BUG should be fixed(segmentation fault), caused by triangle shape and float int conversion
@@ -144,7 +135,7 @@ void drawFilledTriangle (DrawingWindow &window, CanvasTriangle triangle, Colour 
 
             // Draw horizontal line from x_start to x_end
             for (int x = x_start; x <= x_end; x++) {
-                float CurrentPointDepth = XlineDepth[x - x_start];
+                float CurrentPointDepth = 1.0f/XlineDepth[x - x_start];
                 // Z buffer is closer to us if the value is smaller
                 if (x >= 0 && (size_t)x < window.width &&
                     (size_t)y >= 0 && (size_t)y < window.height && CurrentPointDepth > zBuffer[y][x]) {
@@ -171,7 +162,7 @@ void drawFilledTriangle (DrawingWindow &window, CanvasTriangle triangle, Colour 
 
         // Draw horizontal line from x_start to x_end
         for (int x = x_start; x <= x_end; x++) {
-            float CurrentPointDepth = XlineDepth[x - x_start];
+            float CurrentPointDepth = 1.0f/XlineDepth[x - x_start];
             if (x >= 0 && (size_t)x < window.width &&
                 (size_t)y >= 0 && (size_t)y < window.height && CurrentPointDepth > zBuffer[y][x]) {
                 window.setPixelColour(x, y, packedColour);
@@ -204,8 +195,6 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
         } else if (event.key.keysym.sym == SDLK_e) {
             cameraPosition.y += cameraSpeed;
         }else if (event.key.keysym.sym == SDLK_i) { // Pitch up
-            //当角度为正时，这个旋转矩阵会使点围绕X轴进行逆时针旋转。这意味着如果您直接将这个旋转应用于场景中的一个物体，那么这个物体会像向下倾斜30度一样旋转
-            //因为这个应用在模型，模型向下等于抬头看
             cameraOrientation = rotateX(cameraRotationSpeed) * cameraOrientation;
         } else if (event.key.keysym.sym == SDLK_k) { // Pitch down
             cameraOrientation = rotateX(-cameraRotationSpeed) * cameraOrientation;
@@ -214,6 +203,8 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
         } else if (event.key.keysym.sym == SDLK_l) { // Yaw right
             cameraOrientation = rotateY(-cameraRotationSpeed) * cameraOrientation;
         }else if (event.key.keysym.sym == SDLK_1) {
+//            window.clearPixels();  // Clear the window
+//            zBuffer = initialiseDepthBuffer(window.width, window.height);
             std::cout << "1 is pressed, I dont know how to set this to u" << std::endl;
             CanvasPoint p1(rand() % (window.width-1), rand() % (window.height-1));
             CanvasPoint p2(rand() % (window.width-1), rand() % (window.height-1));
@@ -221,13 +212,26 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
             CanvasTriangle randomTriangle(p1, p2, p3);
             drawTriangle(window, randomTriangle, Colour(rand()%255, rand()%255, rand()%255));
         } else if (event.key.keysym.sym == SDLK_2){
+//            window.clearPixels();  // Clear the window
+            zBuffer = initialiseDepthBuffer(window.width, window.height);
             std::cout << "2 is pressed, I dont know how to set this to f" << std::endl;
-            CanvasPoint p1(rand() % (window.width-1), rand() % (window.height-1));
-            CanvasPoint p2(rand() % (window.width-1), rand() % (window.height-1));
-            CanvasPoint p3(rand() % (window.width-1), rand() % (window.height-1));
+            CanvasPoint p1(161.719, 105.046, 3.94212);
+            CanvasPoint p2(176.539, 102.588, 3.38689);
+            CanvasPoint p3(176.5, 204.901, 3.38658);
+//            CanvasPoint p3(rand() % (window.width-1), rand() % (window.height-1), rand() % 100);
+//            CanvasPoint p3(rand() % (window.width-1), rand() % (window.height-1), rand() % 100);
+//            CanvasPoint p3(rand() % (window.width-1), rand() % (window.height-1), rand() % 100);
             CanvasTriangle randomTriangle(p1, p2, p3);
             drawFilledTriangle(window, randomTriangle, Colour(rand()%255, rand()%255, rand()%255));
+
+            CanvasPoint q1(126.676, 233.644, 2.52898);
+            CanvasPoint q2(271.02, 199.378, 3.62419);
+            CanvasPoint q3(272.676, 39.9797, 3.60606);
+            CanvasTriangle randomTriangle2(q1, q2, q3);
+            drawFilledTriangle(window, randomTriangle2, Colour(rand()%255, rand()%255, rand()%255));
         } else if (event.key.keysym.sym == SDLK_3) {
+            window.clearPixels();  // Clear the window
+            zBuffer = initialiseDepthBuffer(window.width, window.height);
             //texture map
             std::cout << "3 is pressed, I dont know how to set this to t" << std::endl;
             CanvasPoint p1(160, 10);
@@ -241,8 +245,10 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
             TextureMap textureMap("../texture.ppm");
             drawTextureTriangle(window, triangle, textureMap);
         }else if (event.key.keysym.sym == SDLK_4){
-            std::cout << "4 is pressed, I dont know how to set this to a" << std::endl;
-            renderPointCloud(window, "../cornell-box.obj", cameraPosition, 2);
+            window.clearPixels();  // Clear the window
+            zBuffer = initialiseDepthBuffer(window.width, window.height);
+            std::cout << "4 is pressed" << std::endl;
+            renderPointCloud(window, "../cornell-box.obj", 2);
         }
 	} else if (event.type == SDL_MOUSEBUTTONDOWN) {
 		window.savePPM("output.ppm");
@@ -251,9 +257,17 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
 }
 
 
-void renderPointCloud(DrawingWindow &window, const std::string& filename, glm::vec3 cameraPosition, float focalLength) {
+void renderPointCloud(DrawingWindow &window, const std::string& filename, float focalLength) {
     // Load the triangles from the OBJ file.
     std::vector<ModelTriangle> triangles = loadOBJ(filename, 0.35);
+
+    glm::vec3 ModelCenter = calculateModelCenter(triangles);
+    float degree = 1.0f;
+    float orbitRotationSpeed = degree * (M_PI / 180.0f);
+    //translate, this is just move the camera
+    cameraPosition = orbitCameraAroundY(cameraPosition, orbitRotationSpeed, ModelCenter);
+    //rotate, this will rotate the camera and let it look at the center of the model
+    cameraOrientation = lookAt(ModelCenter);
 
     std::cout << "Loaded " << triangles.size() << " triangles" << std::endl;
 
@@ -272,22 +286,21 @@ void renderPointCloud(DrawingWindow &window, const std::string& filename, glm::v
 }
 
 CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 vertexPosition, float focalLength) {
-    // Rotate the translated vertex
-    glm::vec3 vertexPositionNew = cameraOrientation * vertexPosition;
 
-    // Convert from model to camera coordinates
-    glm::vec3 relativePosition = vertexPositionNew - cameraPosition;
+    glm::vec3 relativePosition = vertexPosition - cameraPosition;
+
+    glm::vec3 vertexPositionNew = cameraOrientation * relativePosition;
 
     // Compute the projection using the formulas
-    float canvasX = focalLength * -(relativePosition[0] / relativePosition[2]);
+    float canvasX = focalLength * -(vertexPositionNew[0] / vertexPositionNew[2]);
     canvasX *= 150;
     // move the origin to the center of the screen
     canvasX = canvasX + WIDTH / 2.0f;
-    float canvasY = focalLength * (relativePosition[1] / relativePosition[2]);
+    float canvasY = focalLength * (vertexPositionNew[1] / vertexPositionNew[2]);
     canvasY *= 150;
     canvasY = canvasY + HEIGHT / 2.0f;
 
-    return {canvasX, canvasY, vertexPosition.z};
+    return {canvasX, canvasY, vertexPositionNew[2]};
 }
 
 std::vector<std::vector<float>> initialiseDepthBuffer(int width, int height) {
@@ -295,7 +308,7 @@ std::vector<std::vector<float>> initialiseDepthBuffer(int width, int height) {
     for (int y = 0; y < height; y++) {
         std::vector<float> row;
         for (int x = 0; x < width; x++) {
-            row.push_back(std::numeric_limits<float>::lowest());
+            row.push_back(0);
         }
         depthBuffer.push_back(row);
     }
@@ -306,9 +319,10 @@ int main(int argc, char *argv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
 
-    zBuffer = initialiseDepthBuffer(window.width, window.height);
+//    zBuffer = initialiseDepthBuffer(window.width, window.height);
 
 	while (true) {
+
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !

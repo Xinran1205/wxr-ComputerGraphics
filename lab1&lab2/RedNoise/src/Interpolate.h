@@ -5,6 +5,7 @@
 #include "DrawingWindow.h"
 #include "CanvasPoint.h"
 #include "Colour.h"
+#include "CanvasTriangle.h"
 
 std::vector<float> interpolateSingleFloats(float from,float to, int numberOfValues);
 
@@ -15,6 +16,10 @@ void drawTheGreyScale(DrawingWindow &window);
 void draw(DrawingWindow &window);
 
 void drawLineBresenham(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour colour);
+
+void drawLineInterpolation(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour colour);
+
+void drawTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour colour);
 
 //void drawLine(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour colour);
 

@@ -117,6 +117,54 @@ void drawLineBresenham(DrawingWindow &window, CanvasPoint from, CanvasPoint to, 
     }
 }
 
+// drawLine by using interpolation
+void drawLineInterpolation(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour colour){
+
+    int dx = to.x - from.x;
+    int dy = to.y - from.y;
+
+    uint32_t packedColour = (255 << 24) | (colour.red << 16) | (colour.green << 8) | colour.blue;
+
+    // Decide if we should step in x direction or y direction
+    if (std::abs(dx) > std::abs(dy)) {
+        float y = from.y;
+        float slope = (float)dy / (float)dx;
+        // this is very important to check the quadrant of the line
+        if (dx<0){
+            slope = -slope;
+        }
+        int stepX = (dx > 0) ? 1 : -1;
+        for (int x = from.x; (stepX == 1) ? (x <= to.x) : (x >= to.x); x += stepX) {
+            // check the x and y value is in the window
+            if ((size_t)x >= 0 && (size_t)x < window.width &&
+                round(y) >= 0 && round(y) < window.height) {
+                window.setPixelColour(x, round(y), packedColour);
+            }
+            y += slope;
+        }
+    } else {
+        float x = from.x;
+        float slope = (float)dx / (float)dy;
+        if (dy<0){
+            slope = -slope;
+        }
+        int stepY = (dy > 0) ? 1 : -1;
+        for (int y = from.y; (stepY == 1) ? (y <= to.y) : (y >= to.y) ; y += stepY) {
+            if (round(x) >= 0 && round(x) < window.width &&
+                (size_t)y >= 0 && (size_t)y < window.height) {
+                window.setPixelColour(round(x), y, packedColour);
+            }
+            x += slope;
+        }
+    }
+}
+
+void drawTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour colour) {
+    drawLineInterpolation(window, triangle[0], triangle[1], colour);
+    drawLineInterpolation(window, triangle[1], triangle[2], colour);
+    drawLineInterpolation(window, triangle[2], triangle[0], colour);
+}
+
 ////task2 draw line
 //void drawLine(DrawingWindow &window){
 //
