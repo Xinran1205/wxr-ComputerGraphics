@@ -215,6 +215,7 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
 //            window.clearPixels();  // Clear the window
             zBuffer = initialiseDepthBuffer(window.width, window.height);
             std::cout << "2 is pressed, I dont know how to set this to f" << std::endl;
+            //blue triangle
             CanvasPoint p1(161.719, 105.046, 3.94212);
             CanvasPoint p2(176.539, 102.588, 3.38689);
             CanvasPoint p3(176.5, 204.901, 3.38658);
@@ -222,13 +223,13 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
 //            CanvasPoint p3(rand() % (window.width-1), rand() % (window.height-1), rand() % 100);
 //            CanvasPoint p3(rand() % (window.width-1), rand() % (window.height-1), rand() % 100);
             CanvasTriangle randomTriangle(p1, p2, p3);
-            drawFilledTriangle(window, randomTriangle, Colour(rand()%255, rand()%255, rand()%255));
+            drawFilledTriangle(window, randomTriangle, Colour(0, 0, 255));
 
             CanvasPoint q1(126.676, 233.644, 2.52898);
             CanvasPoint q2(271.02, 199.378, 3.62419);
             CanvasPoint q3(272.676, 39.9797, 3.60606);
             CanvasTriangle randomTriangle2(q1, q2, q3);
-            drawFilledTriangle(window, randomTriangle2, Colour(rand()%255, rand()%255, rand()%255));
+            drawFilledTriangle(window, randomTriangle2, Colour(128, 0, 128));
         } else if (event.key.keysym.sym == SDLK_3) {
             window.clearPixels();  // Clear the window
             zBuffer = initialiseDepthBuffer(window.width, window.height);
@@ -287,12 +288,13 @@ void renderPointCloud(DrawingWindow &window, const std::string& filename, float 
 
 CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 vertexPosition, float focalLength) {
 
+    CanvasPoint canvasPoint;
     glm::vec3 relativePosition = vertexPosition - cameraPosition;
 
-    glm::vec3 vertexPositionNew = cameraOrientation * relativePosition;
+    glm::vec3 vertexPositionNew = relativePosition*cameraOrientation;
 
     // Compute the projection using the formulas
-    float canvasX = focalLength * -(vertexPositionNew[0] / vertexPositionNew[2]);
+    float canvasX = focalLength * (vertexPositionNew[0] / vertexPositionNew[2]);
     canvasX *= 150;
     // move the origin to the center of the screen
     canvasX = canvasX + WIDTH / 2.0f;
@@ -300,7 +302,10 @@ CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 verte
     canvasY *= 150;
     canvasY = canvasY + HEIGHT / 2.0f;
 
-    return {canvasX, canvasY, vertexPositionNew[2]};
+    canvasPoint.x = canvasX;
+    canvasPoint.y = canvasY;
+    canvasPoint.depth = vertexPositionNew[2];
+    return canvasPoint;
 }
 
 std::vector<std::vector<float>> initialiseDepthBuffer(int width, int height) {
