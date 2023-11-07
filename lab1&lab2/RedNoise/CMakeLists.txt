@@ -43,7 +43,11 @@ add_executable(RedNoise
         src/DrawTextureTriangle.h
         src/DrawTextureTriangle.cpp
         src/LoadFile.h
-        src/LoadFile.cpp)
+        src/LoadFile.cpp
+        src/Rasterising.h
+        src/Rasterising.cpp
+        src/Globals.h
+        src/Globals.cpp)
 
 if (MSVC)
     target_compile_options(RedNoise

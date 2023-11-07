@@ -12,6 +12,19 @@ std::vector<float> interpolateSingleFloats(float from,float to, int numberOfValu
     return result;
 }
 
+std::vector<CanvasPoint> interpolateCanvasPoint(CanvasPoint from, CanvasPoint to, int numberOfValues){
+    int gap = numberOfValues -1;
+    float stepX = (to.x - from.x) / gap;
+    float stepY = (to.y - from.y) / gap;
+    float stepDepth = (to.depth - from.depth) / gap;
+    std :: vector<CanvasPoint> result;
+    for (int i = 0; i < numberOfValues; i++){
+        result.push_back(CanvasPoint(from.x + (stepX * i), from.y + (stepY * i), from.depth + (stepDepth * i)));
+    }
+    return result;
+}
+
+
 // Three Element Numerical Interpolation
 //return a list of 3D vectors that are interpolated between the two 3D vectors
 std::vector<glm::vec3> interpolateTripleFloats(glm::vec3 from, glm::vec3 to, int numberOfValues){

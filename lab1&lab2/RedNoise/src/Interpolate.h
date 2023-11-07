@@ -21,6 +21,8 @@ void drawLineInterpolation(DrawingWindow &window, CanvasPoint from, CanvasPoint 
 
 void drawTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour colour);
 
+std::vector<CanvasPoint> interpolateCanvasPoint(CanvasPoint from, CanvasPoint to, int numberOfValues);
+
 //void drawLine(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour colour);
 
 
