@@ -95,11 +95,8 @@ void drawFilledTriangle (DrawingWindow &window, CanvasTriangle triangle, Colour 
     // now bottom.y <= middle.y <= top.y
 
     std :: vector<CanvasPoint> pointsBottomToTop = interpolateCanvasPoint(bottom, top, int(top.y) - int(bottom.y) + 1);
-    //calculate the x value of the extra point
-    float ExtraPXvalue = pointsBottomToTop[int(middle.y) - int(bottom.y)].x;
-    float ExtraPDvalue = pointsBottomToTop[int(middle.y) - int(bottom.y)].depth;
 
-    CanvasPoint extraPoint = CanvasPoint(ExtraPXvalue, middle.y, ExtraPDvalue);
+    CanvasPoint extraPoint = pointsBottomToTop[int(middle.y) - int(bottom.y)];
 
     // call the function to draw the triangle, give it 3 new points
     drawPartTriangle(window, CanvasTriangle(middle, extraPoint, bottom), colour);
@@ -118,7 +115,7 @@ void drawPartTriangle (DrawingWindow &window, CanvasTriangle triangle, Colour co
     int yEnd = TopOrBottom.y;
     // check the Peak is the top or the bottom point
     // we always set the yStart to be the smaller one
-    if (yStart > yEnd){
+    if (MiddlePoint.y > TopOrBottom.y){
        std :: swap (yStart, yEnd);
     }
 
@@ -127,27 +124,31 @@ void drawPartTriangle (DrawingWindow &window, CanvasTriangle triangle, Colour co
     std :: vector<CanvasPoint> pointsBetweenExtraAndPeak;
 
     if (yStart == int(MiddlePoint.y)){
-        // this means we need draw the top half triangle,
-        // so we need change the order of the points to make sure the "from" value is smaller than the "to" value
+        // this means we need draw the bottom half triangle
         pointsBetweenMiddleAndPeak = interpolateCanvasPoint(MiddlePoint, TopOrBottom, yEnd - yStart + 1);
         pointsBetweenExtraAndPeak = interpolateCanvasPoint(ExtraPoint, TopOrBottom, yEnd - yStart + 1);
     } else {
-        // this means we need draw the bottom half triangle
+        // this means we need draw the top half triangle,
+        // so we need change the order of the points to make sure the "from" value is smaller than the "to" value
         pointsBetweenMiddleAndPeak = interpolateCanvasPoint(TopOrBottom, MiddlePoint, yEnd - yStart + 1);
         pointsBetweenExtraAndPeak = interpolateCanvasPoint(TopOrBottom, ExtraPoint, yEnd - yStart + 1);
     }
 
     //Always Draw the horizontal line from the bottomY to the middle
+    // also from the Horizontal line from the points between middle and peak to the points between extra and peak
     for (int i = yStart; i < yEnd; i++) {
         int y = i;
+        if (pointsBetweenMiddleAndPeak[i - yStart].x > pointsBetweenExtraAndPeak[i - yStart].x) {
+            std :: swap(pointsBetweenMiddleAndPeak[i - yStart], pointsBetweenExtraAndPeak[i - yStart]);
+        }
+
+        std::vector<float> XlineDepth =interpolateSingleFloats(pointsBetweenMiddleAndPeak[i - yStart].depth,
+                                                                pointsBetweenExtraAndPeak[i - yStart].depth,
+                                                                pointsBetweenExtraAndPeak[i - yStart].x -
+                                                                pointsBetweenMiddleAndPeak[i - yStart].x + 1);
+
         int x_start = pointsBetweenMiddleAndPeak[i - yStart].x;
         int x_end = pointsBetweenExtraAndPeak[i - yStart].x;
-        if (x_start > x_end) std::swap(x_start, x_end); // ensure x_start <= x_end
-
-        float depthStart = pointsBetweenMiddleAndPeak[i - yStart].depth;
-        float depthEnd = pointsBetweenExtraAndPeak[i - yStart].depth;
-        std::vector<float> XlineDepth = interpolateSingleFloats(depthStart, depthEnd, x_end - x_start + 1);
-
         // Draw horizontal line from x_start to x_end
         for (int x = x_start; x <= x_end; x++) {
             float CurrentPointDepth = 1.0f/XlineDepth[x - x_start];

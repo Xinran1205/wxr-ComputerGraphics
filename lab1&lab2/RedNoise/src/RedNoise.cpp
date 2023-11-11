@@ -47,7 +47,6 @@ RayTriangleIntersection getClosestIntersection(const glm::vec3 &cameraPosition, 
         }
     }
 
-    // 如果没有找到交点，closestIntersection的distanceFromCamera将保持为无穷大
     // if no intersection was found, closestIntersection.distanceFromCamera will remain infinity
     return closestIntersection;
 }
@@ -56,6 +55,7 @@ glm::vec3 computeRayDirection(int screenWidth, int screenHeight, int x, int y, f
     // the camera is at (0, 0, 4), and the image plane is at z = 2
 
     glm::vec3 imagePlanePoint(x - screenWidth / 2,screenHeight / 2 - y,-focalLength);
+//    glm::vec3 imagePlanePoint(x - screenWidth / 2,screenHeight / 2 - y,focalLength);
 
     // calculate the ray direction
     glm::vec3 rayDirection = imagePlanePoint - cameraPosition;
@@ -95,7 +95,7 @@ void renderRayTracedScene(DrawingWindow &window, const std::string& filename, fl
                                   (intersection.intersectedTriangle.colour.green << 8) | intersection.intersectedTriangle.colour.blue;
                 window.setPixelColour(x, y, colour);
             } else {
-                // No intersection found, perhaps set the pixel to the background color,设置成黑色
+                // No intersection found, set the pixel to the background color,
                 window.setPixelColour(x, y, 0);
             }
         }

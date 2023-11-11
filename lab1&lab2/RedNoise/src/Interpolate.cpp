@@ -17,9 +17,13 @@ std::vector<CanvasPoint> interpolateCanvasPoint(CanvasPoint from, CanvasPoint to
     float stepX = (to.x - from.x) / gap;
     float stepY = (to.y - from.y) / gap;
     float stepDepth = (to.depth - from.depth) / gap;
+    float stepBrightness = (to.brightness - from.brightness) / gap;
+//    float dx = (to.texturePoint.x - from.texturePoint.x) /gap;
+//    float dy = (to.texturePoint.y - from.texturePoint.y) /gap;
     std :: vector<CanvasPoint> result;
     for (int i = 0; i < numberOfValues; i++){
-        result.push_back(CanvasPoint(from.x + (stepX * i), from.y + (stepY * i), from.depth + (stepDepth * i)));
+        result.push_back(CanvasPoint(from.x + (stepX * i), from.y + (stepY * i), from.depth + (stepDepth * i), from.brightness + (stepBrightness * i)));
+//                                     TexturePoint(from.texturePoint.x + i * dx, from.texturePoint.y + i * dy)));
     }
     return result;
 }
