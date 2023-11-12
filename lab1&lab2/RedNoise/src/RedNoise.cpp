@@ -20,6 +20,17 @@ RayTriangleIntersection getClosestIntersection(const glm::vec3 &cameraPosition, 
 glm::vec3 computeRayDirection(int screenWidth, int screenHeight, int x, int y, float focalLength);
 void renderRayTracedScene(DrawingWindow &window, const std::string& filename, float focalLength);
 
+glm::vec3 calculateLightSourcePosition() {
+    glm::vec3 v1 = glm::vec3(-2.779011, 2.749765, 2.802031);
+    glm::vec3 v2 = glm::vec3(-2.779011, 2.7453132, -2.7899683);
+    glm::vec3 v3 = glm::vec3(2.780989, 2.7453132, -2.7899683);
+    glm::vec3 v4 = glm::vec3(2.780989, 2.749765, 2.802031);
+
+    glm::vec3 lightSourcePosition = (v1 + v2 + v3 + v4) / 4.0f;
+    lightSourcePosition *= 0.35f;
+    return lightSourcePosition;
+}
+
 RayTriangleIntersection getClosestIntersection(const glm::vec3 &cameraPosition, const glm::vec3 &rayDirection, const std::vector<ModelTriangle> &triangles) {
     RayTriangleIntersection closestIntersection;
     closestIntersection.distanceFromCamera = std::numeric_limits<float>::infinity(); // 初始化为最大值
@@ -54,8 +65,12 @@ RayTriangleIntersection getClosestIntersection(const glm::vec3 &cameraPosition, 
 glm::vec3 computeRayDirection(int screenWidth, int screenHeight, int x, int y, float focalLength) {
     // the camera is at (0, 0, 4), and the image plane is at z = 2
 
-    glm::vec3 imagePlanePoint(x - screenWidth / 2,screenHeight / 2 - y,-focalLength);
-//    glm::vec3 imagePlanePoint(x - screenWidth / 2,screenHeight / 2 - y,focalLength);
+    float scale = 150.0f; // Adjust this factor to zoom in or out
+
+    float canvasX = (x - screenWidth / 2) / scale;
+    float canvasY = (screenHeight / 2 - y) / scale;
+
+    glm::vec3 imagePlanePoint = glm::vec3(canvasX, canvasY, focalLength);
 
     // calculate the ray direction
     glm::vec3 rayDirection = imagePlanePoint - cameraPosition;
@@ -80,6 +95,9 @@ void renderRayTracedScene(DrawingWindow &window, const std::string& filename, fl
 //
     std::cout << "Loaded " << triangles.size() << " triangles for ray tracing" << std::endl;
 
+//    glm::vec3 sourceLight = calculateLightSourcePosition();
+    glm::vec3 sourceLight = glm::vec3(0, 0.8, 0);
+
     // Loop over each pixel on the image plane
     for (int y = 0; y < int(window.height); y++) {
         for (int x = 0; x < int(window.width); x++) {
@@ -91,9 +109,20 @@ void renderRayTracedScene(DrawingWindow &window, const std::string& filename, fl
 
             // If an intersection was found, color the pixel accordingly
             if (intersection.distanceFromCamera != std::numeric_limits<float>::infinity()) {
-                uint32_t colour = (255 << 24) | (intersection.intersectedTriangle.colour.red << 16) |
-                                  (intersection.intersectedTriangle.colour.green << 8) | intersection.intersectedTriangle.colour.blue;
-                window.setPixelColour(x, y, colour);
+                glm::vec3 shadowRay = glm::normalize(sourceLight - intersection.intersectionPoint);
+                // 从这个交点，像光源发射一条射线，看是否有物体阻挡，返回最近的交点
+                // from this intersection point, shoot a ray towards the light source, and see if it hits anything
+//                RayTriangleIntersection shadowIntersection = getClosestIntersection(intersection.intersectionPoint, shadowRay, triangles);
+//              shadowRay * 0.002f is to avoid the intersection point itself to be detected as a shadow  "Shadow Acne"
+                RayTriangleIntersection shadowIntersection = getClosestIntersection(intersection.intersectionPoint + shadowRay * 0.002f, shadowRay, triangles);
+                if (shadowIntersection.distanceFromCamera < glm::length(sourceLight - intersection.intersectionPoint)&& shadowIntersection.triangleIndex != intersection.triangleIndex) {
+                    window.setPixelColour(x, y, 0xFF000000);  // 阴影中的像素为黑色
+                } else {
+                    // Calculate the colour of the pixel
+                    uint32_t colour = (255 << 24) | (intersection.intersectedTriangle.colour.red << 16) |
+                                      (intersection.intersectedTriangle.colour.green << 8) | intersection.intersectedTriangle.colour.blue;
+                    window.setPixelColour(x, y, colour);
+                }
             } else {
                 // No intersection found, set the pixel to the background color,
                 window.setPixelColour(x, y, 0);
@@ -183,7 +212,7 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
             std::cout << "4 is pressed" << std::endl;
             renderPointCloud(window, "../cornell-box.obj", 2);
         } else if(event.key.keysym.sym == SDLK_5){
-            renderRayTracedScene(window, "../cornell-box.obj", 200);
+            renderRayTracedScene(window, "../cornell-box.obj", 2);
         }
     } else if (event.type == SDL_MOUSEBUTTONDOWN) {
         window.savePPM("output.ppm");
@@ -202,20 +231,3 @@ int main(int argc, char *argv[]) {
 	}
 	return 0;
 }
-
-//glm::vec3 computeRayDirection(int screenWidth, int screenHeight, int x, int y, float focalLength) {
-//    // Convert screen pixel to normalized device coordinates (-1 to 1)
-//    float ndcX = (2.0f * x) / screenWidth - 1.0f;
-//    float ndcY = 1.0f - (2.0f * y) / screenHeight; // Invert Y to match image coordinates
-//
-//    // Convert NDC to world coordinates (Assuming the camera is looking towards -Z in world space)
-//    glm::vec3 rayWorld(ndcX * screenWidth / screenHeight, ndcY, -focalLength);
-//
-//    // Rotate the ray direction according to the camera orientation
-//    glm::vec3 rayDirection = rayWorld;
-//
-//    // Normalize the ray direction
-//    rayDirection = glm::normalize(rayDirection);
-//
-//    return rayDirection;
-//}
