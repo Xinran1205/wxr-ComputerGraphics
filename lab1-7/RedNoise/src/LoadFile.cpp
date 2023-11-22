@@ -1,6 +1,11 @@
 #include "LoadFile.h"
 #include "Globals.h"
 
+
+
+// 这个变量是一对多的关系，一个顶点对应多个面法向量
+std::map<glm::vec3, std::vector<glm::vec3>, Vec3Comparator> vertexPlaneNormals;
+
 // return a hashmap from material name to colour
 std::map<std::string, Colour> loadMaterials(const std::string& filename) {
     // Map from material name to colour.
@@ -66,6 +71,7 @@ std::vector<ModelTriangle> loadOBJ(const std::string& filename, float scalingFac
             };
 
             // Calculate the normal of the triangle (each triangle has a single normal).
+            // 根据三角形两边的向量计算法向量
             glm::vec3 edge1 = triangleVertices[1] - triangleVertices[0];
             glm::vec3 edge2 = triangleVertices[2] - triangleVertices[0];
             glm::vec3 normal = glm::normalize(glm::cross(edge1, edge2));
@@ -80,28 +86,22 @@ std::vector<ModelTriangle> loadOBJ(const std::string& filename, float scalingFac
             for (const ModelTriangle& triangle : triangles) {
                 glm::vec3 normal = triangle.normal;
                 for (const glm::vec3& vertex : triangle.vertices) {
-                    // this vertexToNormals is a hashmap from vertex to a list of normals and it is a global variable
-                    vertexToNormals[vertex].push_back(normal);
+                    // this vertexPlaneNormals is a hashmap from vertex to a list of normals and it is a global variable
+                    vertexPlaneNormals[vertex].push_back(normal);
                 }
-            }
-            // go through every vertex and average the normals
-            for (auto& [vertex, normals] : vertexToNormals) {
-                glm::vec3 sumNormals(0.0f, 0.0f, 0.0f);
-                // add all the normals which in the plane adjacent to the vertex
-                for (const glm::vec3& normal : normals) {
-                    sumNormals += normal;
-                }
-                glm::vec3 averageNormal = glm::normalize(sumNormals / static_cast<float>(normals.size()));
-                // Replace the entire vector with a new vector containing only the averaged normal
-                vertexToNormals[vertex] = {averageNormal}; // initialize a vector with one element
             }
 
-//            // Convert from 1-based index to 0-based index for vertices.
-//            ModelTriangle triangle(vertices[stoi(tokens[1]) - 1],
-//                                   vertices[stoi(tokens[2]) - 1],
-//                                   vertices[stoi(tokens[3]) - 1],
-//                                   currentColour);
-//            triangles.push_back(triangle);
+            for (const glm::vec3& vertex : vertices) {
+                const std::vector<glm::vec3> &normals = vertexPlaneNormals[vertex];
+
+                glm::vec3 sumNormals(0.0f, 0.0f, 0.0f);
+                for (const glm::vec3 &n : normals) {
+                    sumNormals += n;
+                }
+                glm::vec3 averageNormal = glm::normalize(sumNormals / static_cast<float>(normals.size()));
+                //把这个平均法向量和顶点绑定起来
+                vertexNormals[vertex] = averageNormal;
+            }
         }
     }
     return triangles;

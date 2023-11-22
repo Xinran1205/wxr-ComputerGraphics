@@ -32,7 +32,7 @@ float calculateLighting(const glm::vec3 &point, const glm::vec3 &normal, const g
     // cos(theta) = dot product of the normal and the light direction
     float dotProduct = glm::dot(normalDirection, lightDirection);
     float incidenceBrightness = std::max(dotProduct, 0.0f);
-
+//    float incidenceBrightness = std::abs(dotProduct);
     // combine the two brightness factors
     float combinedBrightness = proximityBrightness * incidenceBrightness;
     // clamp the combined brightness between 0 and 1
@@ -149,7 +149,7 @@ void renderRayTracedScene(DrawingWindow &window, const std::string& filename, fl
     std::cout << "Loaded " << triangles.size() << " triangles for ray tracing" << std::endl;
 
 //    glm::vec3 sourceLight = calculateLightSourcePosition();
-    glm::vec3 sourceLight = glm::vec3(0, 0.8, 0);
+    glm::vec3 sourceLight = glm::vec3(0.5, 0.5, 1);
     float ambientLight = 0.3f;  // ambient light intensity
 
     // Loop over each pixel on the image plane
@@ -166,11 +166,14 @@ void renderRayTracedScene(DrawingWindow &window, const std::string& filename, fl
                 glm::vec3 shadowRay = glm::normalize(sourceLight - intersection.intersectionPoint);
                 RayTriangleIntersection shadowIntersection = getClosestIntersection(intersection.intersectionPoint + shadowRay * 0.002f, shadowRay, triangles);
 
+                // 在这里我已经有了交点所在的三角形，以及这个三角形面的法向量，我现在需要算出这个三角形每个顶点的相邻面的法向量
 
-                // these are the normals of the vertices of the intersected triangle
-                glm::vec3 normal0  = vertexToNormals[intersection.intersectedTriangle.vertices[0]].front();
-                glm::vec3 normal1  = vertexToNormals[intersection.intersectedTriangle.vertices[1]].front();
-                glm::vec3 normal2  = vertexToNormals[intersection.intersectedTriangle.vertices[2]].front();
+                // 然后根据这些法向量算出三角形三个顶点的法向量
+
+                // 然后根据交点的重心坐标，用三个顶点的法向量插值出交点的法向量
+                glm::vec3 normal0  = vertexNormals[intersection.intersectedTriangle.vertices[0]];
+                glm::vec3 normal1  = vertexNormals[intersection.intersectedTriangle.vertices[1]];
+                glm::vec3 normal2  = vertexNormals[intersection.intersectedTriangle.vertices[2]];
                 // calculateBarycentricCoordinates will return u, v, w
                 glm::vec3 barycentricCoords = calculateBarycentricCoordinates(intersection.intersectionPoint, intersection.intersectedTriangle.vertices);
 
