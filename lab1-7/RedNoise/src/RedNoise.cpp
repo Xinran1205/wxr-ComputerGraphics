@@ -134,6 +134,70 @@ glm::vec3 computeRayDirection(int screenWidth, int screenHeight, int x, int y, f
     return rayDirection;
 }
 
+void renderRayTracedSceneFlatShading(DrawingWindow &window, const std::string& filename, float focalLength) {
+    // Load the triangles from the OBJ file.
+    std::vector<ModelTriangle> triangles = loadOBJ(filename, 0.35);
+
+    glm::vec3 ModelCenter = calculateModelCenter(triangles);
+    float degree = 1.0f;
+    float orbitRotationSpeed = degree * (M_PI / 180.0f);
+    // Translate the camera
+    cameraPosition = orbitCameraAroundY(cameraPosition, orbitRotationSpeed, ModelCenter);
+    // Rotate the camera to look at the model center
+    cameraOrientation = lookAt(ModelCenter);
+
+    std::cout << "Loaded " << triangles.size() << " triangles for ray tracing" << std::endl;
+
+//    glm::vec3 sourceLight = calculateLightSourcePosition();
+    glm::vec3 sourceLight = glm::vec3(0.5, 0.3, 1);
+    float ambientLight = 0.3f;  // ambient light intensity
+
+    // Loop over each pixel on the image plane
+    for (int y = 0; y < int(window.height); y++) {
+        for (int x = 0; x < int(window.width); x++) {
+            // Compute the ray direction for this pixel
+            glm::vec3 rayDirection = computeRayDirection(window.width, window.height, x, y, focalLength,cameraOrientation);
+
+            // Find the closest intersection of this ray with the scene
+            RayTriangleIntersection intersection = getClosestIntersection(cameraPosition, rayDirection, triangles);
+
+            // If an intersection was found, color the pixel accordingly
+            if (intersection.distanceFromCamera != std::numeric_limits<float>::infinity()) {
+                glm::vec3 shadowRay = glm::normalize(sourceLight - intersection.intersectionPoint);
+                RayTriangleIntersection shadowIntersection = getClosestIntersection(intersection.intersectionPoint + shadowRay * 0.002f, shadowRay, triangles);
+
+
+                // calculate the diffuse lighting and specular lighting
+                // flat shading
+                 float brightness = calculateLighting(intersection.intersectionPoint,
+                 intersection.intersectedTriangle.normal, sourceLight);
+                 float specularIntensity = calculateSpecularLighting(intersection.intersectionPoint, cameraPosition,
+                 sourceLight, intersection.intersectedTriangle.normal, shininess);
+
+
+                if (shadowIntersection.distanceFromCamera < glm::length(sourceLight - intersection.intersectionPoint)&& shadowIntersection.triangleIndex != intersection.triangleIndex) {
+                    brightness = ambientLight;
+                } else {
+                    // if the intersection is not in shadow, combine the brightness with the ambient light
+                    brightness = glm::max(brightness + ambientLight, ambientLight);
+                }
+
+                // combine the brightness with the specular intensity
+                float combinedBrightness = glm::clamp(brightness + specularIntensity, 0.0f, 1.0f);
+
+                Colour colour = intersection.intersectedTriangle.colour;
+                uint32_t rgbColour = (255 << 24) |
+                                     (int(combinedBrightness * colour.red) << 16) |
+                                     (int(combinedBrightness * colour.green) << 8) |
+                                     int(combinedBrightness * colour.blue);
+                window.setPixelColour(x, y, rgbColour);
+            } else {
+                // No intersection found, set the pixel to the background color,
+                window.setPixelColour(x, y, 0);
+            }
+        }
+    }
+}
 void renderRayTracedScene(DrawingWindow &window, const std::string& filename, float focalLength) {
     // Load the triangles from the OBJ file.
     std::vector<ModelTriangle> triangles = loadOBJ(filename, 0.35);
@@ -149,7 +213,7 @@ void renderRayTracedScene(DrawingWindow &window, const std::string& filename, fl
     std::cout << "Loaded " << triangles.size() << " triangles for ray tracing" << std::endl;
 
 //    glm::vec3 sourceLight = calculateLightSourcePosition();
-    glm::vec3 sourceLight = glm::vec3(0.5, 0.5, 1);
+    glm::vec3 sourceLight = glm::vec3(0.5, 0.3, 1);
     float ambientLight = 0.3f;  // ambient light intensity
 
     // Loop over each pixel on the image plane
@@ -188,10 +252,16 @@ void renderRayTracedScene(DrawingWindow &window, const std::string& filename, fl
 
 
                 // calculate the diffuse lighting and specular lighting
-//                float brightness = calculateLighting(intersection.intersectionPoint, intersection.intersectedTriangle.normal, sourceLight);
+                // flat shading
+//                 float brightness = calculateLighting(intersection.intersectionPoint,
+//                 intersection.intersectedTriangle.normal, sourceLight);
+//                 float specularIntensity = calculateSpecularLighting(intersection.intersectionPoint, cameraPosition,
+//                 sourceLight, intersection.intersectedTriangle.normal, shininess);
+
+//                // phong shading
                 float brightness = calculateLighting(intersection.intersectionPoint, interpolatedNormal, sourceLight);
-//                float specularIntensity = calculateSpecularLighting(intersection.intersectionPoint, cameraPosition, sourceLight, intersection.intersectedTriangle.normal, shininess);
-                float specularIntensity = calculateSpecularLighting(intersection.intersectionPoint, cameraPosition, sourceLight, interpolatedNormal, shininess);
+                float specularIntensity = calculateSpecularLighting(intersection.intersectionPoint, cameraPosition, sourceLight,
+                                                                    interpolatedNormal, shininess);
 
                 if (shadowIntersection.distanceFromCamera < glm::length(sourceLight - intersection.intersectionPoint)&& shadowIntersection.triangleIndex != intersection.triangleIndex) {
                     brightness = ambientLight;
@@ -217,15 +287,102 @@ void renderRayTracedScene(DrawingWindow &window, const std::string& filename, fl
     }
 }
 
+
+void renderRayTracedSceneGouraudShading(DrawingWindow &window, const std::string& filename, float focalLength) {
+    // Load the triangles from the OBJ file.
+    std::vector<ModelTriangle> triangles = loadOBJ(filename, 0.35);
+
+    glm::vec3 ModelCenter = calculateModelCenter(triangles);
+    float degree = 1.0f;
+    float orbitRotationSpeed = degree * (M_PI / 180.0f);
+    // Translate the camera
+    cameraPosition = orbitCameraAroundY(cameraPosition, orbitRotationSpeed, ModelCenter);
+    // Rotate the camera to look at the model center
+    cameraOrientation = lookAt(ModelCenter);
+
+    std::cout << "Loaded " << triangles.size() << " triangles for ray tracing" << std::endl;
+
+//    glm::vec3 sourceLight = calculateLightSourcePosition();
+    glm::vec3 sourceLight = glm::vec3(0.5, 0.5, 1);
+    float ambientLight = 0.3f;  // ambient light intensity
+
+    // Loop over each pixel on the image plane
+    for (int y = 0; y < int(window.height); y++) {
+        for (int x = 0; x < int(window.width); x++) {
+            // Compute the ray direction for this pixel
+            glm::vec3 rayDirection = computeRayDirection(window.width, window.height, x, y, focalLength,cameraOrientation);
+
+            // Find the closest intersection of this ray with the scene
+            RayTriangleIntersection intersection = getClosestIntersection(cameraPosition, rayDirection, triangles);
+
+            // If an intersection was found, color the pixel accordingly
+            if (intersection.distanceFromCamera != std::numeric_limits<float>::infinity()) {
+                glm::vec3 shadowRay = glm::normalize(sourceLight - intersection.intersectionPoint);
+                RayTriangleIntersection shadowIntersection = getClosestIntersection(intersection.intersectionPoint + shadowRay * 0.002f, shadowRay, triangles);
+
+
+                // calculateBarycentricCoordinates will return u, v, w
+                // 这是gouraud shading，我要先创建一个空的数组存储这三个顶点画出的颜色
+//                std::array<float, 3> vertexBrightness;
+
+                for (int i = 0; i < 3; i++) {
+                    glm::vec3 vertex = intersection.intersectedTriangle.vertices[i];
+                    // 如果这个顶点已经计算过了，就不用再计算了
+                    if (vertexBrightnessGlobal.find(vertex) != vertexBrightnessGlobal.end()){
+                        continue;
+                    }
+
+                    glm::vec3 normal = vertexNormals[vertex];
+                    // calculate the diffuse lighting and specular lighting
+                    // flat shading
+                    float brightness = calculateLighting(vertex, normal, sourceLight);
+                    float specularIntensity = calculateSpecularLighting(vertex, cameraPosition, sourceLight, normal, shininess);
+
+                    if (shadowIntersection.distanceFromCamera < glm::length(sourceLight - vertex)&& shadowIntersection.triangleIndex != intersection.triangleIndex) {
+                        brightness = ambientLight;
+                    } else {
+                        // if the intersection is not in shadow, combine the brightness with the ambient light
+                        brightness = glm::max(brightness + ambientLight, ambientLight);
+                    }
+
+                    // combine the brightness with the specular intensity
+                    float combinedBrightness = glm::clamp(brightness + specularIntensity, 0.0f, 1.0f);
+
+                    vertexBrightnessGlobal[vertex] = combinedBrightness;
+//                    vertexBrightness[i] = combinedBrightness;
+                }
+                // 根据重心坐标插值出交点的brigtness
+                glm::vec3 barycentricCoords = calculateBarycentricCoordinates(intersection.intersectionPoint, intersection.intersectedTriangle.vertices);
+
+                // interpolate the normal
+                float ResultVertexBrightness =
+                        barycentricCoords.x * vertexBrightnessGlobal[intersection.intersectedTriangle.vertices[0]] +
+                        barycentricCoords.y * vertexBrightnessGlobal[intersection.intersectedTriangle.vertices[1]] +
+                        barycentricCoords.z * vertexBrightnessGlobal[intersection.intersectedTriangle.vertices[2]];
+
+                Colour colour = intersection.intersectedTriangle.colour;
+                uint32_t rgbColour = (255 << 24) |
+                                     (int(ResultVertexBrightness * colour.red) << 16) |
+                                     (int(ResultVertexBrightness * colour.green) << 8) |
+                                     int(ResultVertexBrightness * colour.blue);
+                window.setPixelColour(x, y, rgbColour);
+            } else {
+                // No intersection found, set the pixel to the background color,
+                window.setPixelColour(x, y, 0);
+            }
+        }
+    }
+}
+
 void handleEvent(SDL_Event event, DrawingWindow &window) {
     if (event.type == SDL_KEYDOWN) {
         if (event.key.keysym.sym == SDLK_LEFT) {
             std::cout << "LEFT" << std::endl;
-        }else if (event.key.keysym.sym == SDLK_RIGHT) {
+        } else if (event.key.keysym.sym == SDLK_RIGHT) {
             std::cout << "RIGHT" << std::endl;
-        }else if (event.key.keysym.sym == SDLK_UP) {
+        } else if (event.key.keysym.sym == SDLK_UP) {
             std::cout << "UP" << std::endl;
-        }else if(event.key.keysym.sym == SDLK_DOWN) {
+        } else if (event.key.keysym.sym == SDLK_DOWN) {
             std::cout << "DOWN" << std::endl;
         } else if (event.key.keysym.sym == SDLK_w) {
             cameraPosition.z -= cameraSpeed;
@@ -239,7 +396,7 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
             cameraPosition.y -= cameraSpeed;
         } else if (event.key.keysym.sym == SDLK_e) {
             cameraPosition.y += cameraSpeed;
-        }else if (event.key.keysym.sym == SDLK_i) { // Pitch up
+        } else if (event.key.keysym.sym == SDLK_i) { // Pitch up
             cameraOrientation = rotateX(cameraRotationSpeed) * cameraOrientation;
         } else if (event.key.keysym.sym == SDLK_k) { // Pitch down
             cameraOrientation = rotateX(-cameraRotationSpeed) * cameraOrientation;
@@ -247,16 +404,16 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
             cameraOrientation = rotateY(cameraRotationSpeed) * cameraOrientation;
         } else if (event.key.keysym.sym == SDLK_l) { // Yaw right
             cameraOrientation = rotateY(-cameraRotationSpeed) * cameraOrientation;
-        }else if (event.key.keysym.sym == SDLK_1) {
+        } else if (event.key.keysym.sym == SDLK_1) {
 //            window.clearPixels();  // Clear the window
 //            zBuffer = initialiseDepthBuffer(window.width, window.height);
             std::cout << "1 is pressed, I dont know how to set this to u" << std::endl;
-            CanvasPoint p1(rand() % (window.width-1), rand() % (window.height-1));
-            CanvasPoint p2(rand() % (window.width-1), rand() % (window.height-1));
-            CanvasPoint p3(rand() % (window.width-1), rand() % (window.height-1));
+            CanvasPoint p1(rand() % (window.width - 1), rand() % (window.height - 1));
+            CanvasPoint p2(rand() % (window.width - 1), rand() % (window.height - 1));
+            CanvasPoint p3(rand() % (window.width - 1), rand() % (window.height - 1));
             CanvasTriangle randomTriangle(p1, p2, p3);
-            drawTriangle(window, randomTriangle, Colour(rand()%255, rand()%255, rand()%255));
-        } else if (event.key.keysym.sym == SDLK_2){
+            drawTriangle(window, randomTriangle, Colour(rand() % 255, rand() % 255, rand() % 255));
+        } else if (event.key.keysym.sym == SDLK_2) {
 //            window.clearPixels();  // Clear the window
             zBuffer = initialiseDepthBuffer(window.width, window.height);
             std::cout << "2 is pressed, I dont know how to set this to f" << std::endl;
@@ -266,11 +423,11 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
 //            CanvasPoint p3(68.762, 97.6856, 3.14208);
 
 
-            CanvasPoint p1(rand() % (window.width-1), rand() % (window.height-1), rand() % 100);
-            CanvasPoint p2(rand() % (window.width-1), rand() % (window.height-1), rand() % 100);
-            CanvasPoint p3(rand() % (window.width-1), rand() % (window.height-1), rand() % 100);
+            CanvasPoint p1(rand() % (window.width - 1), rand() % (window.height - 1), rand() % 100);
+            CanvasPoint p2(rand() % (window.width - 1), rand() % (window.height - 1), rand() % 100);
+            CanvasPoint p3(rand() % (window.width - 1), rand() % (window.height - 1), rand() % 100);
             CanvasTriangle randomTriangle(p1, p2, p3);
-            drawFilledTriangle(window, randomTriangle, Colour(rand()%255, rand()%255, rand()%255));
+            drawFilledTriangle(window, randomTriangle, Colour(rand() % 255, rand() % 255, rand() % 255));
 //
 //            CanvasPoint q1(101.115, 133.422, 5.04429);
 //            CanvasPoint q2(216.459, 133.808, 5.07766);
@@ -292,19 +449,24 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
             CanvasTriangle triangle(p1, p2, p3);
             TextureMap textureMap("../texture.ppm");
             drawTextureTriangle(window, triangle, textureMap);
-        }else if (event.key.keysym.sym == SDLK_4){
+        } else if (event.key.keysym.sym == SDLK_4) {
             window.clearPixels();  // Clear the window
             zBuffer = initialiseDepthBuffer(window.width, window.height);
             std::cout << "4 is pressed" << std::endl;
             renderPointCloud(window, "../cornell-box.obj", 2);
-        } else if(event.key.keysym.sym == SDLK_5){
+        } else if (event.key.keysym.sym == SDLK_5) {
+            window.clearPixels();
             renderRayTracedScene(window, "../cornell-box.obj", 2);
-        } else if(event.key.keysym.sym == SDLK_6) {
+        } else if (event.key.keysym.sym == SDLK_6) {
+            window.clearPixels();
             renderRayTracedScene(window, "../sphere.obj", 2);
+        } else if (event.key.keysym.sym == SDLK_7) {
+            window.clearPixels();
+            renderRayTracedSceneGouraudShading(window, "../sphere.obj", 2);
+        } else if (event.type == SDL_MOUSEBUTTONDOWN) {
+            window.savePPM("output.ppm");
+            window.saveBMP("output.bmp");
         }
-    } else if (event.type == SDL_MOUSEBUTTONDOWN) {
-        window.savePPM("output.ppm");
-        window.saveBMP("output.bmp");
     }
 }
 

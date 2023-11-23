@@ -20,6 +20,7 @@ struct Vec3Comparator {
     }
 };
 extern std::map<glm::vec3, glm::vec3, Vec3Comparator> vertexNormals;
+extern std::map<glm::vec3, float,Vec3Comparator> vertexBrightnessGlobal;
 
 
 #endif //GLOBALS_H
