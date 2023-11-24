@@ -16,5 +16,5 @@ std::map<std::string, Colour> loadMaterials(const std::string& filename);
 
 std::vector<ModelTriangle> loadOBJ(const std::string& filename, float scalingFactor);
 
-
+std::vector<ModelTriangle> loadTexOBJ(const std::string& filename, float scalingFactor);
 #endif //REDNOISE_LOADFILE_H

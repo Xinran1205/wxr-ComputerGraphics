@@ -15,6 +15,7 @@
 #include "LoadFile.h"
 #include "Interpolate.h"
 #include "Globals.h"
+#include "DrawTextureTriangle.h"
 
 
 #define WIDTH 320
@@ -30,4 +31,5 @@ void drawFilledTriangle (DrawingWindow &window, CanvasTriangle triangle, Colour 
 void renderPointCloud(DrawingWindow &window, const std::string& filename, float focalLength);
 CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 vertexPosition, float focalLength);
 void drawPartTriangle (DrawingWindow &window, CanvasTriangle triangle, Colour colour);
+void renderTexPointCloud(DrawingWindow &window, const std::string& filename, float focalLength);
 

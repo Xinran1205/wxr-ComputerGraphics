@@ -10,11 +10,16 @@
 #include "TexturePoint.h"
 #include "TextureMap.h"
 #include "Interpolate.h"
+#include "Globals.h"
 
 
 void drawTextureTriangle(DrawingWindow &window, CanvasTriangle triangle,TextureMap &textureMap);
 
 std::vector<TexturePoint> interpolateTexturePoints(TexturePoint start, TexturePoint end, int numValues);
+
+void drawTextureTriangle (DrawingWindow &window, CanvasTriangle triangle, Colour colour,TextureMap &textureMap);
+
+void drawTexturePartTriangle (DrawingWindow &window, CanvasTriangle triangle, Colour colour,TextureMap &textureMap);
 
 
 #endif //REDNOISE_DRAWTEXTURETRIANGLE_H

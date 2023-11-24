@@ -166,7 +166,6 @@ void drawPartTriangle (DrawingWindow &window, CanvasTriangle triangle, Colour co
 void renderPointCloud(DrawingWindow &window, const std::string& filename, float focalLength) {
     // Load the triangles from the OBJ file.
     std::vector<ModelTriangle> triangles = loadOBJ(filename, 0.35);
-
     glm::vec3 ModelCenter = calculateModelCenter(triangles);
     float degree = 1.0f;
     float orbitRotationSpeed = degree * (M_PI / 180.0f);
@@ -185,11 +184,43 @@ void renderPointCloud(DrawingWindow &window, const std::string& filename, float 
         }
 //        drawTriangle(window, CanvasTriangle(projectedPoints[0], projectedPoints[1], projectedPoints[2]),
 //                     Colour(triangle.colour.red, triangle.colour.green, triangle.colour.blue));
-
         drawFilledTriangle(window, CanvasTriangle(projectedPoints[0], projectedPoints[1], projectedPoints[2]),
                            Colour(triangle.colour.red, triangle.colour.green, triangle.colour.blue));
     }
 }
+
+void renderTexPointCloud(DrawingWindow &window, const std::string& filename, float focalLength) {
+    TextureMap textureMap("../textureCoenell/texture.ppm");
+    std::vector<ModelTriangle> triangles = loadTexOBJ(filename, 0.35);
+    glm::vec3 ModelCenter = calculateModelCenter(triangles);
+    float degree = 1.0f;
+    float orbitRotationSpeed = degree * (M_PI / 180.0f);
+    //translate, this is just move the camera
+    cameraPosition = orbitCameraAroundY(cameraPosition, orbitRotationSpeed, ModelCenter);
+    //rotate, this will rotate the camera and let it look at the center of the model
+    cameraOrientation = lookAt(ModelCenter);
+
+    std::cout << "Loaded " << triangles.size() << " triangles" << std::endl;
+
+    for (const auto& triangle : triangles) {
+        CanvasPoint projectedPoints[3];
+        for (int i = 0; i < 3; i++) {
+            projectedPoints[i] = getCanvasIntersectionPoint(cameraPosition, triangle.vertices[i], focalLength);
+            //这里可以直接这么赋值
+            //需要校验，如果不存纹理坐标，就还是0，如果有纹理坐标需要扩大大小
+            if(triangle.texturePoints[i].x != 0 && triangle.texturePoints[i].y != 0){
+                projectedPoints[i].texturePoint.x = triangle.texturePoints[i].x*150+WIDTH / 2.0f;
+                projectedPoints[i].texturePoint.y = triangle.texturePoints[i].y*150+HEIGHT / 2.0f;
+            }else{
+                projectedPoints[i].texturePoint.x = 0;
+                projectedPoints[i].texturePoint.y = 0;
+            }
+        }
+        drawTextureTriangle(window, CanvasTriangle(projectedPoints[0], projectedPoints[1], projectedPoints[2]),
+                            Colour(triangle.colour.red, triangle.colour.green, triangle.colour.blue), textureMap);
+    }
+}
+
 
 CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 vertexPosition, float focalLength) {
 
