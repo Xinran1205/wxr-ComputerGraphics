@@ -13,14 +13,18 @@ std::vector<float> interpolateSingleFloats(float from,float to, int numberOfValu
 }
 
 std::vector<CanvasPoint> interpolateCanvasPoint(CanvasPoint from, CanvasPoint to, int numberOfValues){
-    int gap = numberOfValues -1;
+    std :: vector<CanvasPoint> result;
+    if (numberOfValues <= 1) {
+        result.push_back(from);
+        return result;
+    }
+    float gap = numberOfValues -1;
     float stepX = (to.x - from.x) / gap;
     float stepY = (to.y - from.y) / gap;
     float stepDepth = (to.depth - from.depth) / gap;
     float stepBrightness = (to.brightness - from.brightness) / gap;
     float textureStepX = (to.texturePoint.x - from.texturePoint.x) /gap;
     float textureStepY = (to.texturePoint.y - from.texturePoint.y) /gap;
-    std :: vector<CanvasPoint> result;
     for (int i = 0; i < numberOfValues; i++){
         CanvasPoint point(from.x + (stepX * i), from.y + (stepY * i), from.depth + (stepDepth * i), from.brightness + (stepBrightness * i));
 
@@ -29,9 +33,6 @@ std::vector<CanvasPoint> interpolateCanvasPoint(CanvasPoint from, CanvasPoint to
         point.texturePoint.y = from.texturePoint.y + (textureStepY * i);
 
         result.push_back(point);
-//        result.push_back(CanvasPoint(from.x + (stepX * i), from.y + (stepY * i), from.depth + (stepDepth * i),
-//                                     from.brightness + (stepBrightness * i),
-//                                     TexturePoint(from.texturePoint.x + i * dx, from.texturePoint.y + i * dy)));
     }
     return result;
 }

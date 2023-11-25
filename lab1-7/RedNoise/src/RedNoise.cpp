@@ -11,6 +11,7 @@
 #include "RayTriangleIntersection.h"
 #include "Rasterising.h"
 #include "Globals.h"
+#include "RotateCamera.h"
 
 #define WIDTH 320
 #define HEIGHT 240
@@ -275,6 +276,58 @@ void renderRayTracedScene(DrawingWindow &window, const std::string& filename, fl
     }
 }
 
+
+void renderRayTracedSceneSoftShadow(DrawingWindow &window, const std::string& filename, float focalLength) {
+    // Load the triangles from the OBJ file.
+    std::vector<ModelTriangle> triangles = loadOBJ(filename, 0.35);
+
+    glm::vec3 ModelCenter = calculateModelCenter(triangles);
+    float degree = 1.0f;
+    float orbitRotationSpeed = degree * (M_PI / 180.0f);
+    // Translate the camera
+    cameraPosition = orbitCameraAroundY(cameraPosition, orbitRotationSpeed, ModelCenter);
+    // Rotate the camera to look at the model center
+    cameraOrientation = lookAt(ModelCenter);
+
+    std::cout << "Loaded " << triangles.size() << " triangles for ray tracing" << std::endl;
+
+//    glm::vec3 sourceLight = calculateLightSourcePosition();
+    glm::vec3 sourceLight = glm::vec3(0.5, 0.3, 1);
+    float ambientLight = 0.3f;  // ambient light intensity
+
+    // Loop over each pixel on the image plane
+    for (int y = 0; y < int(window.height); y++) {
+        for (int x = 0; x < int(window.width); x++) {
+            // Compute the ray direction for this pixel
+            glm::vec3 rayDirection = computeRayDirection(window.width, window.height, x, y, focalLength,cameraOrientation);
+
+            // Find the closest intersection of this ray with the scene
+            RayTriangleIntersection intersection = getClosestIntersection(cameraPosition, rayDirection, triangles);
+
+            // If an intersection was found, color the pixel accordingly
+            if (intersection.distanceFromCamera != std::numeric_limits<float>::infinity()) {
+                glm::vec3 shadowRay = glm::normalize(sourceLight - intersection.intersectionPoint);
+                RayTriangleIntersection shadowIntersection = getClosestIntersection(intersection.intersectionPoint + shadowRay * 0.002f, shadowRay, triangles);
+
+                //这里是三个不同的shading方法，可以自己选择
+                float combinedBrightness = phongShading(intersection,shadowIntersection, sourceLight, ambientLight);
+//                float combinedBrightness = GouraudShading(intersection,shadowIntersection, sourceLight, ambientLight);
+//                float combinedBrightness = FlatShading(intersection,shadowIntersection, sourceLight, ambientLight);
+
+                Colour colour = intersection.intersectedTriangle.colour;
+                uint32_t rgbColour = (255 << 24) |
+                                     (int(combinedBrightness * colour.red) << 16) |
+                                     (int(combinedBrightness * colour.green) << 8) |
+                                     int(combinedBrightness * colour.blue);
+                window.setPixelColour(x, y, rgbColour);
+            } else {
+                // No intersection found, set the pixel to the background color,
+                window.setPixelColour(x, y, 0);
+            }
+        }
+    }
+}
+
 void handleEvent(SDL_Event event, DrawingWindow &window) {
     if (event.type == SDL_KEYDOWN) {
         if (event.key.keysym.sym == SDLK_LEFT) {
@@ -298,13 +351,29 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
         } else if (event.key.keysym.sym == SDLK_e) {
             cameraPosition.y += cameraSpeed;
         } else if (event.key.keysym.sym == SDLK_i) { // Pitch up
-            cameraOrientation = rotateX(cameraRotationSpeed) * cameraOrientation;
+            float degree = 1.0f;
+            float orbitRotationSpeed = degree * (M_PI / 180.0f);
+            //translate, this is just move the camera
+            cameraPosition = orbitCameraAroundX(cameraPosition, orbitRotationSpeed, glm::vec3(0, 0, 0));
+            cameraOrientation = lookAt(glm::vec3(0, 0, 0));
         } else if (event.key.keysym.sym == SDLK_k) { // Pitch down
-            cameraOrientation = rotateX(-cameraRotationSpeed) * cameraOrientation;
+            float degree = 1.0f;
+            float orbitRotationSpeed = degree * (M_PI / 180.0f);
+            //translate, this is just move the camera
+            cameraPosition = orbitCameraAroundXInverse(cameraPosition, orbitRotationSpeed, glm::vec3(0, 0, 0));
+            cameraOrientation = lookAt(glm::vec3(0, 0, 0));
         } else if (event.key.keysym.sym == SDLK_j) { // Yaw left
-            cameraOrientation = rotateY(cameraRotationSpeed) * cameraOrientation;
+            float degree = 1.0f;
+            float orbitRotationSpeed = degree * (M_PI / 180.0f);
+            //translate, this is just move the camera
+            cameraPosition = orbitCameraAroundY(cameraPosition, orbitRotationSpeed, glm::vec3(0, 0, 0));
+            cameraOrientation = lookAt(glm::vec3(0, 0, 0));
         } else if (event.key.keysym.sym == SDLK_l) { // Yaw right
-            cameraOrientation = rotateY(-cameraRotationSpeed) * cameraOrientation;
+            float degree = 1.0f;
+            float orbitRotationSpeed = degree * (M_PI / 180.0f);
+            //translate, this is just move the camera
+            cameraPosition = orbitCameraAroundYInverse(cameraPosition, orbitRotationSpeed, glm::vec3(0, 0, 0));
+            cameraOrientation = lookAt(glm::vec3(0, 0, 0));
         } else if (event.key.keysym.sym == SDLK_1) {
 //            window.clearPixels();  // Clear the window
 //            zBuffer = initialiseDepthBuffer(window.width, window.height);
@@ -321,8 +390,13 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
             CanvasPoint p1(rand() % (window.width - 1), rand() % (window.height - 1), rand() % 100);
             CanvasPoint p2(rand() % (window.width - 1), rand() % (window.height - 1), rand() % 100);
             CanvasPoint p3(rand() % (window.width - 1), rand() % (window.height - 1), rand() % 100);
+            p1.texturePoint = TexturePoint(0, 0);
+            p2.texturePoint = TexturePoint(0, 0);
+            p3.texturePoint = TexturePoint(0, 0);
             CanvasTriangle randomTriangle(p1, p2, p3);
-            drawFilledTriangle(window, randomTriangle, Colour(rand() % 255, rand() % 255, rand() % 255));
+            TextureMap textureMap("../texture.ppm");
+            drawTextureTriangle(window, randomTriangle, Colour(rand() % 255, rand() % 255, rand() % 255), textureMap);
+//            drawFilledTriangle(window, randomTriangle, Colour(rand() % 255, rand() % 255, rand() % 255));
         } else if (event.key.keysym.sym == SDLK_3) {
             window.clearPixels();  // Clear the window
             zBuffer = initialiseDepthBuffer(window.width, window.height);
@@ -337,12 +411,14 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
 
             CanvasTriangle triangle(p1, p2, p3);
             TextureMap textureMap("../texture.ppm");
-            drawTextureTriangle(window, triangle, textureMap);
+            drawTextureTriangle(window, triangle,Colour(255, 255, 255), textureMap);
         } else if (event.key.keysym.sym == SDLK_4) {
             window.clearPixels();  // Clear the window
             zBuffer = initialiseDepthBuffer(window.width, window.height);
             std::cout << "4 is pressed" << std::endl;
-            renderPointCloud(window, "../cornell-box.obj", 2);
+            TextureMap textureMap("../texture.ppm");
+            renderPointCloud(window, "../cornell-box.obj", 2, textureMap);
+//            renderPointCloud(window, "../cornell-box.obj", 2);
         } else if (event.key.keysym.sym == SDLK_5) {
             window.clearPixels();
             renderRayTracedScene(window, "../cornell-box.obj", 2);
@@ -352,8 +428,10 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
         } else if(event.key.keysym.sym == SDLK_7){
             window.clearPixels();  // Clear the window
             zBuffer = initialiseDepthBuffer(window.width, window.height);
-            std::cout << "4 is pressed" << std::endl;
-            renderTexPointCloud(window, "../textureCoenell/textured-cornell-box.obj", 2);
+            std::cout << "7 is pressed" << std::endl;
+            TextureMap textureMap("../texture.ppm");
+//            cameraOrientation = lookAt(glm::vec3(0, 0, 0));
+            renderPointCloud(window, "../textured-cornell-box.obj", 2, textureMap);
         }else if (event.type == SDL_MOUSEBUTTONDOWN) {
             window.savePPM("output.ppm");
             window.saveBMP("output.bmp");

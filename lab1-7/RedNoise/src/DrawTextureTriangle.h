@@ -13,7 +13,7 @@
 #include "Globals.h"
 
 
-void drawTextureTriangle(DrawingWindow &window, CanvasTriangle triangle,TextureMap &textureMap);
+//void drawTextureTriangle(DrawingWindow &window, CanvasTriangle triangle,TextureMap &textureMap);
 
 std::vector<TexturePoint> interpolateTexturePoints(TexturePoint start, TexturePoint end, int numValues);
 
