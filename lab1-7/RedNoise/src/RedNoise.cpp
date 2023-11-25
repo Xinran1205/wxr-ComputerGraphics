@@ -12,68 +12,16 @@
 #include "Rasterising.h"
 #include "Globals.h"
 #include "RotateCamera.h"
+#include "HardShadowRendering.h"
 
 #define WIDTH 320
 #define HEIGHT 240
 
-int shininess = 500;
+
 RayTriangleIntersection getClosestIntersection(const glm::vec3 &cameraPosition, const glm::vec3 &rayDirection, const std::vector<ModelTriangle> &triangles);
 glm::vec3 computeRayDirection(int screenWidth, int screenHeight, int x, int y, float focalLength);
 void renderRayTracedScene(DrawingWindow &window, const std::string& filename, float focalLength);
 
-// calculate diffuse lighting
-float calculateLighting(const glm::vec3 &point, const glm::vec3 &normal, const glm::vec3 &lightSource) {
-    glm::vec3 toLight = lightSource - point;
-    float distance = glm::length(toLight);
-    float proximityBrightness = 3.0f / (5 * M_PI * distance * distance);
-
-
-    glm::vec3 lightDirection = glm::normalize(toLight);
-    glm::vec3 normalDirection = glm::normalize(normal);
-    // cos(theta) = dot product of the normal and the light direction
-    float dotProduct = glm::dot(normalDirection, lightDirection);
-    float incidenceBrightness = std::max(dotProduct, 0.0f);
-//    float incidenceBrightness = std::abs(dotProduct);
-    // combine the two brightness factors
-    float combinedBrightness = proximityBrightness * incidenceBrightness;
-    // clamp the combined brightness between 0 and 1
-    return glm::clamp(combinedBrightness, 0.0f, 1.0f);
-}
-
-glm::vec3 calculateBarycentricCoordinates(const glm::vec3 &P, const std::array<glm::vec3, 3> &triangleVertices) {
-    glm::vec3 A = triangleVertices[0];
-    glm::vec3 B = triangleVertices[1];
-    glm::vec3 C = triangleVertices[2];
-
-    glm::vec3 AB = B - A;
-    glm::vec3 AC = C - A;
-    glm::vec3 BC = C - B;
-    glm::vec3 AP = P - A;
-    glm::vec3 BP = P - B;
-
-    // 计算三角形ABC的面积的两倍（使用叉乘）
-    float areaABC = glm::length(glm::cross(AB, AC));
-    // 计算P相对于三角形顶点的子三角形的面积的两倍
-    float areaPBC = glm::length(glm::cross(BP, BC));
-    float areaPCA = glm::length(glm::cross(AP, AC));
-
-    // 重心坐标是子三角形面积除以整个三角形面积
-    float u = areaPBC / areaABC;
-    float v = areaPCA / areaABC;
-    float w = 1.0f - u - v;
-
-    return glm::vec3(u, v, w);
-}
-
-float calculateSpecularLighting(const glm::vec3 &point,const glm::vec3 &cameraPosition, const glm::vec3 &lightSource, const glm::vec3 &normal, int shininess) {
-    glm::vec3 viewDirection = glm::normalize(cameraPosition - point);
-    glm::vec3 lightDirection = glm::normalize(lightSource - point);
-    // calculate the reflection direction
-    glm::vec3 reflectDir = glm::reflect(-lightDirection, normal);
-    // compare the reflection direction with the view direction
-    float spec = glm::pow(glm::max(glm::dot(viewDirection, reflectDir), 0.0f), shininess);
-    return spec;
-}
 
 glm::vec3 calculateLightSourcePosition() {
     glm::vec3 v1 = glm::vec3(-2.779011, 2.749765, 2.802031);
@@ -86,77 +34,41 @@ glm::vec3 calculateLightSourcePosition() {
     return lightSourcePosition;
 }
 
-RayTriangleIntersection getClosestIntersection(const glm::vec3 &cameraPosition, const glm::vec3 &rayDirection, const std::vector<ModelTriangle> &triangles) {
-    RayTriangleIntersection closestIntersection;
-    closestIntersection.distanceFromCamera = std::numeric_limits<float>::infinity(); // 初始化为最大值
-    float closestDistance = std::numeric_limits<float>::infinity(); // 初始化为最大值
+//对于我们的一个intersection，他与多个点光源有多个shadowIntersection
+float FlatShadingSoft(RayTriangleIntersection intersection, const std::vector<RayTriangleIntersection> &shadowIntersections,
+                      const std::vector<glm::vec3> &lightPoints, float ambientLight) {
 
-    // go through all the triangles and find the closest intersection
-    for (size_t i = 0; i < triangles.size(); i++) {
-        const ModelTriangle &triangle = triangles[i];
+    float totalBrightness = 0.0f;
+    //遍历这个intersection与多个点光源的shadowIntersection，并且把所有的brightness加起来
+    //最后求平均就是这个intersection的brightness
+    for (size_t i = 0; i < lightPoints.size(); i++) {
+        // Calculate brightness and specular intensity for each light point
+        float brightness = calculateLighting(intersection.intersectionPoint,
+                                             intersection.intersectedTriangle.normal, lightPoints[i]);
+        float specularIntensity = calculateSpecularLighting(intersection.intersectionPoint, cameraPosition,
+                                                            lightPoints[i], intersection.intersectedTriangle.normal, shininess);
 
-        glm::vec3 e0 = triangle.vertices[1] - triangle.vertices[0];
-        glm::vec3 e1 = triangle.vertices[2] - triangle.vertices[0];
-        glm::vec3 SPVector = cameraPosition - triangle.vertices[0];
-        glm::mat3 DEMatrix(-rayDirection, e0, e1);
-        glm::vec3 possibleSolution = glm::inverse(DEMatrix) * SPVector;
-
-        float t = possibleSolution.x, u = possibleSolution.y, v = possibleSolution.z;
-
-        // check if the intersection is in front of the camera, and if it is the closest intersection so far
-        if (t > 0 && u >= 0 && u <= 1 && v >= 0 && v <= 1 && u + v <= 1) {
-            if (t < closestDistance) {
-                closestDistance = t;
-                glm::vec3 intersectionPoint = cameraPosition + t * rayDirection;
-                closestIntersection = RayTriangleIntersection(intersectionPoint, t, triangle, i);
-            }
+        // Determine if the point is in shadow for the current light point
+        if (shadowIntersections[i].distanceFromCamera < glm::length(lightPoints[i] - intersection.intersectionPoint) &&
+            shadowIntersections[i].triangleIndex != intersection.triangleIndex) {
+            // In shadow, only ambient light contributes
+            brightness = ambientLight;
+        } else {
+            // Not in shadow, add ambient light
+            brightness = glm::max(brightness + ambientLight, ambientLight);
         }
+
+        // Accumulate total brightness and specular intensity
+        totalBrightness += brightness + specularIntensity; // Add specular to each light's contribution
     }
 
-    // if no intersection was found, closestIntersection.distanceFromCamera will remain infinity
-    return closestIntersection;
+    // Average the brightness from all light sources
+    float averageBrightness = glm::clamp(totalBrightness / lightPoints.size(), 0.0f, 1.0f);
+    return averageBrightness;
 }
 
-glm::vec3 computeRayDirection(int screenWidth, int screenHeight, int x, int y, float focalLength, glm::mat3 cameraOrientation) {
-    // the camera is at (0, 0, 4), and the image plane is at z = 2
-
-    float scale = 150.0f; // Adjust this factor to zoom in or out
-
-    float canvasX = (x - screenWidth / 2) / scale;
-    float canvasY = -(screenHeight / 2 - y) / scale;
-
-    glm::vec3 imagePlanePoint = glm::vec3(canvasX, canvasY, focalLength);
-
-    // rotate the camera and let it look at the model center
-    glm::vec3 rayDirection = cameraOrientation * imagePlanePoint;
-    // normalize the ray direction
-    rayDirection = glm::normalize(rayDirection);
-
-    return rayDirection;
-}
-
-float FlatShading(RayTriangleIntersection intersection, RayTriangleIntersection shadowIntersection,
-                  const glm::vec3 &sourceLight, float ambientLight) {
-    float brightness = calculateLighting(intersection.intersectionPoint,
-                                         intersection.intersectedTriangle.normal, sourceLight);
-    float specularIntensity = calculateSpecularLighting(intersection.intersectionPoint, cameraPosition,
-                                                        sourceLight, intersection.intersectedTriangle.normal, shininess);
-
-
-    if (shadowIntersection.distanceFromCamera < glm::length(sourceLight - intersection.intersectionPoint)&& shadowIntersection.triangleIndex != intersection.triangleIndex) {
-        brightness = ambientLight;
-    } else {
-        // if the intersection is not in shadow, combine the brightness with the ambient light
-        brightness = glm::max(brightness + ambientLight, ambientLight);
-    }
-
-    // combine the brightness with the specular intensity
-    float combinedBrightness = glm::clamp(brightness + specularIntensity, 0.0f, 1.0f);
-    return combinedBrightness;
-}
-
-float GouraudShading(RayTriangleIntersection intersection, RayTriangleIntersection shadowIntersection,
-                     const glm::vec3 &sourceLight, float ambientLight){
+float GouraudShadingSoft(RayTriangleIntersection intersection, const std::vector<RayTriangleIntersection> &shadowIntersections,
+                         const std::vector<glm::vec3> &lightPoints, float ambientLight){
     for (int i = 0; i < 3; i++) {
         glm::vec3 vertex = intersection.intersectedTriangle.vertices[i];
         // 如果这个顶点已经计算过了，就不用再计算了
@@ -166,23 +78,32 @@ float GouraudShading(RayTriangleIntersection intersection, RayTriangleIntersecti
 
         glm::vec3 normal = vertexNormals[vertex];
         // calculate the diffuse lighting and specular lighting
-        float brightness = calculateLighting(vertex, normal, sourceLight);
-        float specularIntensity = calculateSpecularLighting(vertex, cameraPosition, sourceLight, normal, shininess);
+        float totalBrightness = 0.0f;
 
-        if (shadowIntersection.distanceFromCamera < glm::length(sourceLight - vertex)&& shadowIntersection.triangleIndex != intersection.triangleIndex) {
-            brightness = ambientLight;
-        } else {
-            // if the intersection is not in shadow, combine the brightness with the ambient light
-            brightness = glm::max(brightness + ambientLight, ambientLight);
+        // 对每个光源点计算漫反射和镜面反射
+        for (size_t j = 0; j < lightPoints.size(); j++) {
+            float brightness = calculateLighting(vertex, normal, lightPoints[j]);
+            float specularIntensity = calculateSpecularLighting(vertex, cameraPosition, lightPoints[j], normal, shininess);
+
+            // 检查该顶点是否对于每个光源点都在阴影中
+            if (shadowIntersections[j].distanceFromCamera < glm::length(lightPoints[j] - vertex) &&
+                shadowIntersections[j].triangleIndex != intersection.triangleIndex) {
+                brightness = ambientLight;  // 在阴影中，只考虑环境光
+            } else {
+                brightness += ambientLight;  // 不在阴影中，添加环境光
+            }
+
+            totalBrightness += brightness + specularIntensity;
         }
 
-        // combine the brightness with the specular intensity
-        float combinedBrightness = glm::clamp(brightness + specularIntensity, 0.0f, 1.0f);
+        // 结合平均漫反射和平均镜面反射得到最终顶点亮度
+        float averageBrightness = glm::clamp(totalBrightness / lightPoints.size(), 0.0f, 1.0f);
 
-        vertexBrightnessGlobal[vertex] = combinedBrightness;
+        vertexBrightnessGlobal[vertex] = averageBrightness;
     }
     // 根据重心坐标插值出交点的brigtness
-    glm::vec3 barycentricCoords = calculateBarycentricCoordinates(intersection.intersectionPoint, intersection.intersectedTriangle.vertices);
+    glm::vec3 barycentricCoords = calculateBarycentricCoordinates(intersection.intersectionPoint,
+                                                                  intersection.intersectedTriangle.vertices);
 
     // interpolate the normal
     float ResultVertexBrightness =
@@ -192,8 +113,8 @@ float GouraudShading(RayTriangleIntersection intersection, RayTriangleIntersecti
     return ResultVertexBrightness;
 }
 
-float phongShading(RayTriangleIntersection intersection, RayTriangleIntersection shadowIntersection,
-                   const glm::vec3 &sourceLight, float ambientLight) {
+float phongShadingSoft(RayTriangleIntersection intersection, const std::vector<RayTriangleIntersection> &shadowIntersections,
+                       const std::vector<glm::vec3> &lightPoints, float ambientLight) {
     glm::vec3 normal0  = vertexNormals[intersection.intersectedTriangle.vertices[0]];
     glm::vec3 normal1  = vertexNormals[intersection.intersectedTriangle.vertices[1]];
     glm::vec3 normal2  = vertexNormals[intersection.intersectedTriangle.vertices[2]];
@@ -208,74 +129,26 @@ float phongShading(RayTriangleIntersection intersection, RayTriangleIntersection
 
     interpolatedNormal = glm::normalize(interpolatedNormal);
 
-    // phong shading
-    float brightness = calculateLighting(intersection.intersectionPoint, interpolatedNormal, sourceLight);
-    float specularIntensity = calculateSpecularLighting(intersection.intersectionPoint, cameraPosition, sourceLight,
-                                                        interpolatedNormal, shininess);
+    float totalBrightness = 0.0f;
+    for (size_t i = 0; i < lightPoints.size(); i++) {
+        float brightness = calculateLighting(intersection.intersectionPoint, interpolatedNormal, lightPoints[i]);
+        float specularIntensity = calculateSpecularLighting(intersection.intersectionPoint, cameraPosition, lightPoints[i],
+                                                            interpolatedNormal, shininess);
 
-    if (shadowIntersection.distanceFromCamera < glm::length(sourceLight - intersection.intersectionPoint)&& shadowIntersection.triangleIndex != intersection.triangleIndex) {
-        brightness = ambientLight;
-    } else {
-        // if the intersection is not in shadow, combine the brightness with the ambient light
-        brightness = glm::max(brightness + ambientLight, ambientLight);
-    }
-
-    // combine the brightness with the specular intensity
-    float combinedBrightness = glm::clamp(brightness + specularIntensity, 0.0f, 1.0f);
-    return combinedBrightness;
-}
-
-void renderRayTracedScene(DrawingWindow &window, const std::string& filename, float focalLength) {
-    // Load the triangles from the OBJ file.
-    std::vector<ModelTriangle> triangles = loadOBJ(filename, 0.35);
-
-    glm::vec3 ModelCenter = calculateModelCenter(triangles);
-    float degree = 1.0f;
-    float orbitRotationSpeed = degree * (M_PI / 180.0f);
-    // Translate the camera
-    cameraPosition = orbitCameraAroundY(cameraPosition, orbitRotationSpeed, ModelCenter);
-    // Rotate the camera to look at the model center
-    cameraOrientation = lookAt(ModelCenter);
-
-    std::cout << "Loaded " << triangles.size() << " triangles for ray tracing" << std::endl;
-
-//    glm::vec3 sourceLight = calculateLightSourcePosition();
-    glm::vec3 sourceLight = glm::vec3(0.5, 0.3, 1);
-    float ambientLight = 0.3f;  // ambient light intensity
-
-    // Loop over each pixel on the image plane
-    for (int y = 0; y < int(window.height); y++) {
-        for (int x = 0; x < int(window.width); x++) {
-            // Compute the ray direction for this pixel
-            glm::vec3 rayDirection = computeRayDirection(window.width, window.height, x, y, focalLength,cameraOrientation);
-
-            // Find the closest intersection of this ray with the scene
-            RayTriangleIntersection intersection = getClosestIntersection(cameraPosition, rayDirection, triangles);
-
-            // If an intersection was found, color the pixel accordingly
-            if (intersection.distanceFromCamera != std::numeric_limits<float>::infinity()) {
-                glm::vec3 shadowRay = glm::normalize(sourceLight - intersection.intersectionPoint);
-                RayTriangleIntersection shadowIntersection = getClosestIntersection(intersection.intersectionPoint + shadowRay * 0.002f, shadowRay, triangles);
-
-                //这里是三个不同的shading方法，可以自己选择
-                float combinedBrightness = phongShading(intersection,shadowIntersection, sourceLight, ambientLight);
-//                float combinedBrightness = GouraudShading(intersection,shadowIntersection, sourceLight, ambientLight);
-//                float combinedBrightness = FlatShading(intersection,shadowIntersection, sourceLight, ambientLight);
-
-                Colour colour = intersection.intersectedTriangle.colour;
-                uint32_t rgbColour = (255 << 24) |
-                                     (int(combinedBrightness * colour.red) << 16) |
-                                     (int(combinedBrightness * colour.green) << 8) |
-                                     int(combinedBrightness * colour.blue);
-                window.setPixelColour(x, y, rgbColour);
-            } else {
-                // No intersection found, set the pixel to the background color,
-                window.setPixelColour(x, y, 0);
-            }
+        if (shadowIntersections[i].distanceFromCamera < glm::length(lightPoints[i] - intersection.intersectionPoint) &&
+            shadowIntersections[i].triangleIndex != intersection.triangleIndex) {
+            brightness = ambientLight; // In shadow, only ambient light contributes
+        } else {
+            brightness = glm::max(brightness + ambientLight, ambientLight); // Not in shadow, add ambient light
         }
-    }
-}
 
+        totalBrightness += brightness + specularIntensity; // Add specular to each light's contribution
+    }
+
+    // Average the brightness from all light sources
+    float averageBrightness = glm::clamp(totalBrightness / lightPoints.size(), 0.0f, 1.0f);
+    return averageBrightness;
+}
 
 void renderRayTracedSceneSoftShadow(DrawingWindow &window, const std::string& filename, float focalLength) {
     // Load the triangles from the OBJ file.
@@ -291,29 +164,35 @@ void renderRayTracedSceneSoftShadow(DrawingWindow &window, const std::string& fi
 
     std::cout << "Loaded " << triangles.size() << " triangles for ray tracing" << std::endl;
 
-//    glm::vec3 sourceLight = calculateLightSourcePosition();
-    glm::vec3 sourceLight = glm::vec3(0.5, 0.3, 1);
+    // Define your multi-point light source here
+    std::vector<glm::vec3> lightPoints = {{0, 0.7, 0},{0,0.8,0},{0,0.9,0},
+                                          {0,0.75,0},{0,0.85,0},{0,0.95,0}};
     float ambientLight = 0.3f;  // ambient light intensity
 
     // Loop over each pixel on the image plane
     for (int y = 0; y < int(window.height); y++) {
         for (int x = 0; x < int(window.width); x++) {
             // Compute the ray direction for this pixel
-            glm::vec3 rayDirection = computeRayDirection(window.width, window.height, x, y, focalLength,cameraOrientation);
+            glm::vec3 rayDirection = computeRayDirection(window.width, window.height, x, y, focalLength, cameraOrientation);
 
             // Find the closest intersection of this ray with the scene
             RayTriangleIntersection intersection = getClosestIntersection(cameraPosition, rayDirection, triangles);
 
             // If an intersection was found, color the pixel accordingly
             if (intersection.distanceFromCamera != std::numeric_limits<float>::infinity()) {
-                glm::vec3 shadowRay = glm::normalize(sourceLight - intersection.intersectionPoint);
-                RayTriangleIntersection shadowIntersection = getClosestIntersection(intersection.intersectionPoint + shadowRay * 0.002f, shadowRay, triangles);
+                // Initialize combined brightness
+                std::vector<RayTriangleIntersection> AllshadowIntersection;
+                // Iterate over each point light to calculate soft shadows
+                for (const auto& lightPoint : lightPoints) {
+                    glm::vec3 shadowRay = glm::normalize(lightPoint - intersection.intersectionPoint);
+                    RayTriangleIntersection shadowIntersection = getClosestIntersection(intersection.intersectionPoint + shadowRay * 0.002f, shadowRay, triangles);
+                    AllshadowIntersection.push_back(shadowIntersection);
+                }
 
-                //这里是三个不同的shading方法，可以自己选择
-                float combinedBrightness = phongShading(intersection,shadowIntersection, sourceLight, ambientLight);
-//                float combinedBrightness = GouraudShading(intersection,shadowIntersection, sourceLight, ambientLight);
-//                float combinedBrightness = FlatShading(intersection,shadowIntersection, sourceLight, ambientLight);
-
+                // Calculate average brightness from all light points
+//                float combinedBrightness = phongShadingSoft(intersection, AllshadowIntersection, lightPoints, ambientLight);
+                float combinedBrightness = FlatShadingSoft(intersection, AllshadowIntersection, lightPoints, ambientLight);
+//                float combinedBrightness = GouraudShadingSoft(intersection, AllshadowIntersection, lightPoints, ambientLight);
                 Colour colour = intersection.intersectedTriangle.colour;
                 uint32_t rgbColour = (255 << 24) |
                                      (int(combinedBrightness * colour.red) << 16) |
@@ -321,7 +200,7 @@ void renderRayTracedSceneSoftShadow(DrawingWindow &window, const std::string& fi
                                      int(combinedBrightness * colour.blue);
                 window.setPixelColour(x, y, rgbColour);
             } else {
-                // No intersection found, set the pixel to the background color,
+                // No intersection found, set the pixel to the background color
                 window.setPixelColour(x, y, 0);
             }
         }
@@ -432,7 +311,11 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
             TextureMap textureMap("../texture.ppm");
 //            cameraOrientation = lookAt(glm::vec3(0, 0, 0));
             renderPointCloud(window, "../textured-cornell-box.obj", 2, textureMap);
-        }else if (event.type == SDL_MOUSEBUTTONDOWN) {
+        } else if(event.key.keysym.sym == SDLK_8){
+            window.clearPixels();
+            renderRayTracedSceneSoftShadow(window, "../cornell-box.obj", 2);
+        }
+        else if (event.type == SDL_MOUSEBUTTONDOWN) {
             window.savePPM("output.ppm");
             window.saveBMP("output.bmp");
         }

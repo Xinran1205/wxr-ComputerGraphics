@@ -13,3 +13,4 @@ float cameraSpeed = 5.0f;
 float cameraRotationSpeed = 0.05f;
 std::map<glm::vec3, glm::vec3, Vec3Comparator> vertexNormals;
 std::map<glm::vec3, float,Vec3Comparator> vertexBrightnessGlobal;
+int shininess = 500;

@@ -13,6 +13,7 @@ extern glm::vec3 cameraPosition;
 extern glm::mat3 cameraOrientation;
 extern float cameraSpeed;
 extern float cameraRotationSpeed;
+extern int shininess;
 
 struct Vec3Comparator {
     bool operator() (const glm::vec3& a, const glm::vec3& b) const {

@@ -49,7 +49,9 @@ add_executable(RedNoise
         src/Globals.h
         src/Globals.cpp
         src/RotateCamera.h
-        src/RotateCamera.cpp)
+        src/RotateCamera.cpp
+        src/HardShadowRendering.h
+        src/HardShadowRendering.cpp)
 
 if (MSVC)
     target_compile_options(RedNoise
