@@ -198,6 +198,27 @@ float phongShading(RayTriangleIntersection intersection, RayTriangleIntersection
     return combinedBrightness;
 }
 
+// 添加一个新的函数来处理反射光线的递归追踪
+Colour traceReflectiveRay(const glm::vec3 &rayOrigin, const glm::vec3 &rayDirection, const std::vector<ModelTriangle> &triangles, int depth) {
+    // 递归深度大于3就停止
+    if (depth >= 3) {
+        return Colour(0, 0, 0);
+    }
+
+    RayTriangleIntersection intersection = getClosestIntersection(rayOrigin, rayDirection, triangles);
+    //其实这个条件基本上走不进去，除非我有多个镜面
+    if (intersection.intersectedTriangle.isMirror) {
+        glm::vec3 reflectDir = glm::reflect(rayDirection, intersection.intersectedTriangle.normal);
+        glm::vec3 reflectOrigin = intersection.intersectionPoint + reflectDir * 0.002f; // 避免自我交叉
+        return traceReflectiveRay(reflectOrigin, reflectDir, triangles, depth + 1);
+    } else {
+        if (intersection.distanceFromCamera == std::numeric_limits<float>::infinity()) {
+            return Colour(0, 0, 0);
+        }
+        return intersection.intersectedTriangle.colour; // 返回交点的颜色
+    }
+}
+
 void renderRayTracedScene(DrawingWindow &window, const std::string& filename, float focalLength) {
     // Load the triangles from the OBJ file.
     std::vector<ModelTriangle> triangles = loadOBJ(filename, 0.35);
@@ -227,20 +248,33 @@ void renderRayTracedScene(DrawingWindow &window, const std::string& filename, fl
 
             // If an intersection was found, color the pixel accordingly
             if (intersection.distanceFromCamera != std::numeric_limits<float>::infinity()) {
-                glm::vec3 shadowRay = glm::normalize(sourceLight - intersection.intersectionPoint);
-                RayTriangleIntersection shadowIntersection = getClosestIntersection(intersection.intersectionPoint + shadowRay * 0.002f, shadowRay, triangles);
+                //如果交点是镜面的
+                if (intersection.intersectedTriangle.isMirror){
+                    glm::vec3 reflectDir = glm::reflect(rayDirection, intersection.intersectedTriangle.normal);
+                    glm::vec3 reflectOrigin = intersection.intersectionPoint + reflectDir * 0.002f; // 避免自我交叉
+                    Colour reflectColour = traceReflectiveRay(reflectOrigin, reflectDir, triangles, 1);
+                    uint32_t rgbColour = (255 << 24) |
+                                         (int(reflectColour.red) << 16) |
+                                         (int(reflectColour.green) << 8) |
+                                         int(reflectColour.blue);
+                    window.setPixelColour(x, y, rgbColour);
 
-                //这里是三个不同的shading方法，可以自己选择
+                }else{//交点不是镜面的
+                    glm::vec3 shadowRay = glm::normalize(sourceLight - intersection.intersectionPoint);
+                    RayTriangleIntersection shadowIntersection = getClosestIntersection(intersection.intersectionPoint + shadowRay * 0.002f, shadowRay, triangles);
+
+                    //这里是三个不同的shading方法，可以自己选择
 //                float combinedBrightness = phongShading(intersection,shadowIntersection, sourceLight, ambientLight);
 //                float combinedBrightness = GouraudShading(intersection,shadowIntersection, sourceLight, ambientLight);
-                float combinedBrightness = FlatShading(intersection,shadowIntersection, sourceLight, ambientLight);
+                    float combinedBrightness = FlatShading(intersection,shadowIntersection, sourceLight, ambientLight);
 
-                Colour colour = intersection.intersectedTriangle.colour;
-                uint32_t rgbColour = (255 << 24) |
-                                     (int(combinedBrightness * colour.red) << 16) |
-                                     (int(combinedBrightness * colour.green) << 8) |
-                                     int(combinedBrightness * colour.blue);
-                window.setPixelColour(x, y, rgbColour);
+                    Colour colour = intersection.intersectedTriangle.colour;
+                    uint32_t rgbColour = (255 << 24) |
+                                         (int(combinedBrightness * colour.red) << 16) |
+                                         (int(combinedBrightness * colour.green) << 8) |
+                                         int(combinedBrightness * colour.blue);
+                    window.setPixelColour(x, y, rgbColour);
+                }
             } else {
                 // No intersection found, set the pixel to the background color,
                 window.setPixelColour(x, y, 0);

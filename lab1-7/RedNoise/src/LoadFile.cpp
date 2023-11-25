@@ -6,10 +6,16 @@
 // 这个变量是一对多的关系，一个顶点对应多个面法向量
 std::map<glm::vec3, std::vector<glm::vec3>, Vec3Comparator> vertexPlaneNormals;
 
+//struct MaterialProperties {
+//    Colour colour;
+//    bool isMirror;
+//};
+
 // return a hashmap from material name to colour
-std::map<std::string, Colour> loadMaterials(const std::string& filename) {
+std::map<std::string, MaterialProperties> loadMaterials(const std::string& filename) {
     // Map from material name to colour.
-    std::map<std::string, Colour> materials;
+    std::map<std::string, MaterialProperties> materials;
+//    std::map<std::string, Colour> materials;
     std::ifstream file(filename);
 
     if (!file.is_open()) {
@@ -19,17 +25,23 @@ std::map<std::string, Colour> loadMaterials(const std::string& filename) {
 
     std::string line;
     std::string currentMaterialName;
+    Colour currentColour;
+    bool isMirror = false;
     while (std::getline(file, line)) {
         auto tokens = split(line, ' ');
         if (tokens[0] == "newmtl") {
             currentMaterialName = tokens[1];
-        } else if (tokens[0] == "Kd") {
+            isMirror = false;  // Reset for each new material
+        } else if (tokens[0] == "mirror") {
+            isMirror = tokens[1] == "1";  // 如果标记为"1"，则设置为镜面
+            //这依赖于mtl文件，mtl中mirror一定要写在Kd之前
+        }else if (tokens[0] == "Kd") {
             float r, g, b;
             r = std::stof(tokens[1]);
             g = std::stof(tokens[2]);
             b = std::stof(tokens[3]);
-            // Assuming the values in the mtl file are between 0 and 1.
-            materials[currentMaterialName] = Colour(currentMaterialName, r * 255, g * 255, b * 255);
+            currentColour = Colour(currentMaterialName, r * 255, g * 255, b * 255);
+            materials[currentMaterialName] = MaterialProperties{currentColour, isMirror};
         }
     }
     return materials;
@@ -126,15 +138,18 @@ std::vector<ModelTriangle> loadOBJ(const std::string& filename, float scalingFac
         return triangles;
     }
     // Load the materials from the .mtl file.
-    std::map<std::string, Colour> palette = loadMaterials("../cornell-box.mtl");
-    Colour currentColour;
+//    std::map<std::string, Colour> palette = loadMaterials("../cornell-box.mtl");
+    std::map<std::string, MaterialProperties> materialsProperties = loadMaterials("../cornell-box.mtl");
+    MaterialProperties currentMaterialProps;
+//    Colour currentColour;
     std::string line;
     while (std::getline(file, line)) {
         // Tokenize the line for easier parsing.
         auto tokens = split(line, ' ');
 
         if (tokens[0] == "usemtl") {
-            currentColour = palette[tokens[1]];
+            currentMaterialProps = materialsProperties[tokens[1]];
+//            currentColour = palette[tokens[1]];
         } else if (tokens[0] == "v") {
             // Check if line starts with 'v' (vertex).
             // stof converts a string to a float.
@@ -169,9 +184,10 @@ std::vector<ModelTriangle> loadOBJ(const std::string& filename, float scalingFac
             glm::vec3 normal = glm::normalize(glm::cross(edge1, edge2));
 
             // 创建三角形并设置顶点、纹理坐标和颜色
-            ModelTriangle triangle(triangleVertices[0], triangleVertices[1], triangleVertices[2], currentColour);
+            ModelTriangle triangle(triangleVertices[0], triangleVertices[1], triangleVertices[2], currentMaterialProps.colour);
             triangle.texturePoints = triangleTexturePoints; // 设置纹理坐标
             triangle.normal = normal; // 设置法线
+            triangle.isMirror = currentMaterialProps.isMirror; // 设置是否为镜面
             triangles.push_back(triangle);
         }
     }

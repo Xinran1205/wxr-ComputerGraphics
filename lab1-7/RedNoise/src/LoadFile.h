@@ -12,7 +12,12 @@
 #include<iostream>
 #include <Utils.h>
 
-std::map<std::string, Colour> loadMaterials(const std::string& filename);
+struct MaterialProperties {
+    Colour colour;
+    bool isMirror;
+};
+
+std::map<std::string, MaterialProperties> loadMaterials(const std::string& filename);
 
 std::vector<ModelTriangle> loadOBJ(const std::string& filename, float scalingFactor);
 
