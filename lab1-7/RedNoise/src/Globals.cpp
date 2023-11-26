@@ -7,6 +7,7 @@
 #include <vector>
 
 std::vector<std::vector<float>> zBuffer;
+//glm::vec3 cameraPosition = glm::vec3(-1, 0, 4.0);
 glm::vec3 cameraPosition = glm::vec3(0, 0, 4);
 glm::mat3 cameraOrientation = glm::mat3(1.0f);
 float cameraSpeed = 5.0f;

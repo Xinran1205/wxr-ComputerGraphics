@@ -15,6 +15,7 @@
 struct MaterialProperties {
     Colour colour;
     bool isMirror;
+    bool isGlass;
 };
 
 std::map<std::string, MaterialProperties> loadMaterials(const std::string& filename);

@@ -27,21 +27,25 @@ std::map<std::string, MaterialProperties> loadMaterials(const std::string& filen
     std::string currentMaterialName;
     Colour currentColour;
     bool isMirror = false;
+    bool isGlass = false;
     while (std::getline(file, line)) {
         auto tokens = split(line, ' ');
         if (tokens[0] == "newmtl") {
             currentMaterialName = tokens[1];
             isMirror = false;  // Reset for each new material
+            isGlass = false;
         } else if (tokens[0] == "mirror") {
             isMirror = tokens[1] == "1";  // 如果标记为"1"，则设置为镜面
             //这依赖于mtl文件，mtl中mirror一定要写在Kd之前
-        }else if (tokens[0] == "Kd") {
+        }else if(tokens[0] == "glass"){
+            isGlass = tokens[1] == "1";
+        }else if (tokens[0] == "Kd"){
             float r, g, b;
             r = std::stof(tokens[1]);
             g = std::stof(tokens[2]);
             b = std::stof(tokens[3]);
             currentColour = Colour(currentMaterialName, r * 255, g * 255, b * 255);
-            materials[currentMaterialName] = MaterialProperties{currentColour, isMirror};
+            materials[currentMaterialName] = MaterialProperties{currentColour, isMirror, isGlass};
         }
     }
     return materials;
@@ -188,6 +192,7 @@ std::vector<ModelTriangle> loadOBJ(const std::string& filename, float scalingFac
             triangle.texturePoints = triangleTexturePoints; // 设置纹理坐标
             triangle.normal = normal; // 设置法线
             triangle.isMirror = currentMaterialProps.isMirror; // 设置是否为镜面
+            triangle.isGlass = currentMaterialProps.isGlass; // 设置是否为玻璃
             triangles.push_back(triangle);
         }
     }

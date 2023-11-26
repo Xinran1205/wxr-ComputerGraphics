@@ -5,6 +5,7 @@ newmtl Grey
 Kd 0.700000 0.700000 0.700000
 
 newmtl Red
+glass 1
 Kd 1.000000 0.000000 0.000000
 
 newmtl Green

@@ -199,7 +199,8 @@ float phongShading(RayTriangleIntersection intersection, RayTriangleIntersection
 }
 
 // 添加一个新的函数来处理反射光线的递归追踪
-Colour traceReflectiveRay(const glm::vec3 &rayOrigin, const glm::vec3 &rayDirection, const std::vector<ModelTriangle> &triangles, int depth) {
+Colour traceReflectiveRay(const glm::vec3 &rayOrigin, const glm::vec3 &rayDirection, const std::vector<ModelTriangle> &triangles,
+                          int depth, const glm::vec3 &sourceLight, float ambientLight) {
     // 递归深度大于3就停止
     if (depth >= 3) {
         return Colour(0, 0, 0);
@@ -210,14 +211,142 @@ Colour traceReflectiveRay(const glm::vec3 &rayOrigin, const glm::vec3 &rayDirect
     if (intersection.intersectedTriangle.isMirror) {
         glm::vec3 reflectDir = glm::reflect(rayDirection, intersection.intersectedTriangle.normal);
         glm::vec3 reflectOrigin = intersection.intersectionPoint + reflectDir * 0.002f; // 避免自我交叉
-        return traceReflectiveRay(reflectOrigin, reflectDir, triangles, depth + 1);
-    } else {
+        return traceReflectiveRay(reflectOrigin, reflectDir, triangles, depth + 1, sourceLight, ambientLight);
+    } else if(intersection.intersectedTriangle.isGlass){
+        //如果反射撞到玻璃上面，这个intersection就是和玻璃的交点
+
+        float indexOfRefraction = 1.6;
+        glm::vec3 normal{};
+        if (glm::dot(rayDirection, intersection.intersectedTriangle.normal)<0) {
+            normal = -intersection.intersectedTriangle.normal;
+        }else{
+            normal = intersection.intersectedTriangle.normal;
+        }
+        glm::vec3 refractDir = calculate_refracted_ray(rayDirection, normal, indexOfRefraction);
+        glm::vec3 refractOrigin = intersection.intersectionPoint + normal * 0.002f; // 避免自我交叉
+
+        Colour refractColour = traceRefractiveRay(refractOrigin, refractDir, triangles, 1,sourceLight,ambientLight);
+        return refractColour;
+    }else{
         if (intersection.distanceFromCamera == std::numeric_limits<float>::infinity()) {
             return Colour(0, 0, 0);
         }
-        return intersection.intersectedTriangle.colour; // 返回交点的颜色
+
+        glm::vec3 shadowRay = glm::normalize(sourceLight - intersection.intersectionPoint);
+        RayTriangleIntersection shadowIntersection = getClosestIntersection(intersection.intersectionPoint + shadowRay * 0.002f,
+                                                                            shadowRay, triangles);
+
+        //这里是三个不同的shading方法，可以自己选择
+//                float combinedBrightness = phongShading(intersection,shadowIntersection, sourceLight, ambientLight);
+//                float combinedBrightness = GouraudShading(intersection,shadowIntersection, sourceLight, ambientLight);
+        float combinedBrightness = FlatShading(intersection,shadowIntersection, sourceLight, ambientLight);
+
+        Colour colour = intersection.intersectedTriangle.colour;
+        colour.red *= combinedBrightness;
+        colour.green *= combinedBrightness;
+        colour.blue *= combinedBrightness;
+
+        return colour; // 返回交点的颜色
     }
 }
+
+glm::vec3 calculate_refracted_ray(const glm::vec3 &incident, const glm::vec3 &normal, float ior) {
+    float cosi = glm::clamp(glm::dot(-incident, normal), -1.0f, 1.0f);
+    float etai = 1, etat = ior;
+    glm::vec3 n = normal;
+    if (cosi < 0) {
+        cosi = -cosi;
+        std::swap(etai, etat);
+        n = -n;
+    }
+    float eta = etai / etat;
+    float k = 1 - eta * eta * (1 - cosi * cosi);
+    if (k < 0) {
+        return glm::vec3(0); // Total internal reflection
+    } else {
+        return eta * incident + (eta * cosi - static_cast<float>(sqrt(k))) * n;
+    }
+}
+
+Colour traceRefractiveRay(const glm::vec3& refractOrigin,
+                          const glm::vec3& refractDir, const std::vector<ModelTriangle>& triangles,
+                          int depth, const glm::vec3 &sourceLight, float ambientLight) {
+    // 递归的基本情况：如果超过了最大递归深度，返回默认颜色（例如，背景颜色）
+//    if (depth > 5) {
+//        return Colour(0, 0, 0); // 黑色或任何其他背景颜色
+//    }
+
+    // 在场景中找到折射光线与最近的交点
+    RayTriangleIntersection closestIntersection = getClosestIntersection(refractOrigin, refractDir, triangles);
+
+//     如果没有找到交点，返回背景颜色
+    if (closestIntersection.distanceFromCamera == std::numeric_limits<float>::infinity()) {
+        return Colour(0, 0, 0); // 根据场景背景定义这个颜色
+    }
+
+    // 假设我此时从交点往相同方向继续射，如果下面碰到的物体还是玻璃，说明我们在玻璃内部
+    glm::vec3 NextRefractOrigin = closestIntersection.intersectionPoint + closestIntersection.intersectedTriangle.normal * 0.001f;
+    RayTriangleIntersection NextClosestIntersection = getClosestIntersection(NextRefractOrigin,
+                                                                             refractDir, triangles);
+    bool isInside = NextClosestIntersection.intersectedTriangle.isGlass;
+    //这个条件模拟的出玻璃时的情况
+    if (closestIntersection.intersectedTriangle.isGlass && !isInside) {
+        // 计算新的折射率
+        float newIndexOfRefraction = 1/1.3;
+        glm::vec3 normal{};
+        if (glm::dot(refractDir, closestIntersection.intersectedTriangle.normal)<0) {
+            normal = -closestIntersection.intersectedTriangle.normal;
+        }else{
+            normal = closestIntersection.intersectedTriangle.normal;
+        }
+
+        // 使用glm::refract计算折射方向
+        glm::vec3 newRefractDir =calculate_refracted_ray(refractDir, normal, newIndexOfRefraction);
+
+        // 计算新的折射原点，稍微偏移以避免自我交叉
+        glm::vec3 newRefractOrigin = closestIntersection.intersectionPoint + normal * 0.001f;
+
+        RayTriangleIntersection FinalClosestIntersection = getClosestIntersection(newRefractOrigin,
+                                                                                 newRefractDir, triangles);
+        //如果这个新的交点是无穷远，说明没有新的交点，返回背景颜色
+        if (FinalClosestIntersection.distanceFromCamera == std::numeric_limits<float>::infinity()) {
+            // 如果没有新的交点，返回背景颜色
+            return Colour(0, 0, 0);
+        }
+        // 如果这个出玻璃后的交点是镜面的，发生反射
+        if (FinalClosestIntersection.intersectedTriangle.isMirror){
+            glm::vec3 reflectDir = glm::reflect(newRefractDir, FinalClosestIntersection.intersectedTriangle.normal);
+            glm::vec3 reflectOrigin = FinalClosestIntersection.intersectionPoint + reflectDir * 0.002f; // 避免自我交叉
+            Colour reflectColour = traceReflectiveRay(reflectOrigin, reflectDir, triangles, 1,sourceLight,ambientLight);
+            return reflectColour;
+        }
+        // 走到这说明最后打到一个物体上面
+        glm::vec3 shadowRay = glm::normalize(sourceLight - FinalClosestIntersection.intersectionPoint);
+        RayTriangleIntersection shadowIntersection = getClosestIntersection(FinalClosestIntersection.intersectionPoint + shadowRay * 0.002f,
+                                                                            shadowRay, triangles);
+        //这里是三个不同的shading方法，可以自己选择
+//                float combinedBrightness = phongShading(intersection,shadowIntersection, sourceLight, ambientLight);
+//                float combinedBrightness = GouraudShading(intersection,shadowIntersection, sourceLight, ambientLight);
+        float combinedBrightness = FlatShading(FinalClosestIntersection,shadowIntersection, sourceLight, ambientLight);
+
+        Colour colour = FinalClosestIntersection.intersectedTriangle.colour;
+        colour.red *= combinedBrightness;
+        colour.green *= combinedBrightness;
+        colour.blue *= combinedBrightness;
+
+        return colour; // 返回交点的颜色
+
+//        // 递归追踪新的折射光线
+//        return traceRefractiveRay(newRefractOrigin, newRefractDir, triangles, depth + 1);
+    }else{
+        // 仍然在玻璃内
+        glm::vec3 newRefractOrigin = closestIntersection.intersectionPoint + closestIntersection.intersectedTriangle.normal * 0.001f;
+
+        // 递归追踪新的折射光线
+        return traceRefractiveRay(newRefractOrigin, refractDir, triangles, depth + 1,sourceLight,ambientLight);
+    }
+}
+
 
 void renderRayTracedScene(DrawingWindow &window, const std::string& filename, float focalLength) {
     // Load the triangles from the OBJ file.
@@ -252,16 +381,35 @@ void renderRayTracedScene(DrawingWindow &window, const std::string& filename, fl
                 if (intersection.intersectedTriangle.isMirror){
                     glm::vec3 reflectDir = glm::reflect(rayDirection, intersection.intersectedTriangle.normal);
                     glm::vec3 reflectOrigin = intersection.intersectionPoint + reflectDir * 0.002f; // 避免自我交叉
-                    Colour reflectColour = traceReflectiveRay(reflectOrigin, reflectDir, triangles, 1);
+                    Colour reflectColour = traceReflectiveRay(reflectOrigin, reflectDir, triangles, 1,sourceLight,ambientLight);
                     uint32_t rgbColour = (255 << 24) |
                                          (int(reflectColour.red) << 16) |
                                          (int(reflectColour.green) << 8) |
                                          int(reflectColour.blue);
                     window.setPixelColour(x, y, rgbColour);
 
+                }else if(intersection.intersectedTriangle.isGlass){
+                    // 如果交点是玻璃的，发生折射
+                    float indexOfRefraction = 1.3;
+                    glm::vec3 normal{};
+                    if (glm::dot(rayDirection, intersection.intersectedTriangle.normal)<0) {
+                        normal = -intersection.intersectedTriangle.normal;
+                    }else{
+                        normal = intersection.intersectedTriangle.normal;
+                    }
+                    glm::vec3 refractDir = calculate_refracted_ray(rayDirection, normal, indexOfRefraction);
+                    glm::vec3 refractOrigin = intersection.intersectionPoint + normal * 0.001f; // 避免自我交叉
+
+                    Colour refractColour = traceRefractiveRay(refractOrigin, refractDir, triangles, 1,sourceLight,ambientLight);
+                    uint32_t rgbColour = (255 << 24) |
+                                         (int(refractColour.red) << 16) |
+                                         (int(refractColour.green) << 8) |
+                                         int(refractColour.blue);
+                    window.setPixelColour(x, y, rgbColour);
                 }else{//交点不是镜面的
                     glm::vec3 shadowRay = glm::normalize(sourceLight - intersection.intersectionPoint);
-                    RayTriangleIntersection shadowIntersection = getClosestIntersection(intersection.intersectionPoint + shadowRay * 0.002f, shadowRay, triangles);
+                    RayTriangleIntersection shadowIntersection = getClosestIntersection(intersection.intersectionPoint + shadowRay * 0.002f,
+                                                                                        shadowRay, triangles);
 
                     //这里是三个不同的shading方法，可以自己选择
 //                float combinedBrightness = phongShading(intersection,shadowIntersection, sourceLight, ambientLight);
@@ -282,3 +430,40 @@ void renderRayTracedScene(DrawingWindow &window, const std::string& filename, fl
         }
     }
 }
+
+
+////如果交点是玻璃的，发生折射
+////                    // 计算Fresnel效应
+////                    float kr; // 反射系数
+//float indexOfRefraction = 1.6;
+////                    computeFresnel(rayDirection, intersection.intersectedTriangle.normal, indexOfRefraction, kr);
+////
+////                    Colour reflectionColour = {0, 0, 0};
+//Colour refractionColour = {0, 0, 0};
+////
+////                    // 如果有反射
+////                    if (kr < 1) {
+////                        glm::vec3 reflectDir = glm::reflect(rayDirection, intersection.intersectedTriangle.normal);
+////                        glm::vec3 reflectOrigin = intersection.intersectionPoint + reflectDir * 0.002f;
+////                        reflectionColour = traceReflectiveRay(reflectOrigin, reflectDir, triangles, 1);
+////                    }
+////
+////                    // 计算折射方向（如果有必要）
+////                    if (kr > 0) {
+//glm::vec3 refractDir = glm::refract(rayDirection, intersection.intersectedTriangle.normal, indexOfRefraction);
+////这里可能要改成延法线相反方向平移，不确定
+//glm::vec3 refractOrigin = intersection.intersectionPoint + refractDir * 0.002f;
+//refractionColour = traceRefractiveRay(intersection.intersectedTriangle,refractOrigin,
+//                                      refractDir, triangles, 1, indexOfRefraction);
+////                    }
+////
+////                    int mixedRed = kr * reflectionColour.red + (1 - kr) * refractionColour.red;
+////                    int mixedGreen = kr * reflectionColour.green + (1 - kr) * refractionColour.green;
+////                    int mixedBlue = kr * reflectionColour.blue + (1 - kr) * refractionColour.blue;
+//
+////                    Colour pixelColour = Colour(mixedRed, mixedGreen, mixedBlue);
+//uint32_t rgbColour = (255 << 24) |
+//                     (refractionColour.red << 16) |
+//                     (refractionColour.green << 8) |
+//                     refractionColour.blue;
+//window.setPixelColour(x, y, rgbColour);

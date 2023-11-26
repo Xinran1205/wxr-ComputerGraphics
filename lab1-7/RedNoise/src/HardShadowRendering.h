@@ -29,4 +29,10 @@ float GouraudShading(RayTriangleIntersection intersection, RayTriangleIntersecti
 float phongShading(RayTriangleIntersection intersection, RayTriangleIntersection shadowIntersection,
                    const glm::vec3 &sourceLight, float ambientLight);
 
+Colour traceRefractiveRay(const glm::vec3& refractOrigin,
+                          const glm::vec3& refractDir, const std::vector<ModelTriangle>& triangles,
+                          int depth,const glm::vec3 &sourceLight, float ambientLight);
+
+glm::vec3 calculate_refracted_ray(const glm::vec3 &incident, const glm::vec3 &normal, float ior);
+
 #endif //REDNOISE_HARDSHADOWRENDERING_H
