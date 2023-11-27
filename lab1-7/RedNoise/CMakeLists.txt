@@ -51,7 +51,9 @@ add_executable(RedNoise
         src/RotateCamera.h
         src/RotateCamera.cpp
         src/HardShadowRendering.h
-        src/HardShadowRendering.cpp)
+        src/HardShadowRendering.cpp
+        src/EnvironmentMapping.h
+        src/EnvironmentMapping.cpp)
 
 if (MSVC)
     target_compile_options(RedNoise

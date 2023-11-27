@@ -92,7 +92,6 @@ std::vector<TexturePoint> interpolateTexturePoints(TexturePoint start, TexturePo
     std::vector<TexturePoint> result;
     float dx = (end.x - start.x) /(numValues - 1);
     float dy = (end.y - start.y) /(numValues - 1);
-
     for (int i = 0; i < numValues; i++) {
         result.push_back(TexturePoint(start.x + i * dx, start.y + i * dy));
     }

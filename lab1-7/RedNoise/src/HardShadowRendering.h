@@ -35,4 +35,6 @@ Colour traceRefractiveRay(const glm::vec3& refractOrigin,
 
 glm::vec3 calculate_refracted_ray(const glm::vec3 &incident, const glm::vec3 &normal, float ior);
 
+void renderRayTracedSceneForEnv(DrawingWindow &window, const std::string& filename, float focalLength,const std::array<TextureMap, 6>& textures);
+
 #endif //REDNOISE_HARDSHADOWRENDERING_H

@@ -13,6 +13,7 @@
 #include "Globals.h"
 #include "RotateCamera.h"
 #include "HardShadowRendering.h"
+#include "EnvironmentMapping.h"
 
 #define WIDTH 320
 #define HEIGHT 240
@@ -302,6 +303,7 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
             window.clearPixels();
             renderRayTracedScene(window, "../cornell-box.obj", 2);
         } else if (event.key.keysym.sym == SDLK_6) {
+            //要测试这个，首先光和相机的位置都要调一下！
             window.clearPixels();
             renderRayTracedScene(window, "../sphere.obj", 2);
         } else if(event.key.keysym.sym == SDLK_7){
@@ -314,6 +316,20 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
         } else if(event.key.keysym.sym == SDLK_8){
             window.clearPixels();
             renderRayTracedSceneSoftShadow(window, "../cornell-box.obj", 2);
+        }else if(event.key.keysym.sym == SDLK_9) {
+            // environment mapping, 环境映射
+            window.clearPixels();
+            TextureMap frontTexture("../skybox/front.ppm");
+            TextureMap backTexture("../skybox/back.ppm");
+            TextureMap leftTexture("../skybox/left.ppm");
+            TextureMap rightTexture("../skybox/right.ppm");
+            TextureMap topTexture("../skybox/top.ppm");
+            TextureMap bottomTexture("../skybox/bottom.ppm");
+            std::array<TextureMap, 6> textures = {
+                    rightTexture, leftTexture, topTexture, bottomTexture, frontTexture, backTexture
+            };
+            //这个球体不需要设置成mirror，因为我这个函数默认就模型全部是mirror
+            renderRayTracedSceneForEnv(window, "../envsphere.obj", 2,textures);
         }
         else if (event.type == SDL_MOUSEBUTTONDOWN) {
             window.savePPM("output.ppm");
