@@ -68,20 +68,20 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
             renderPointCloud(window, "../textured-cornell-box.obj", 2, textureMap,"../material/cornell-box.mtl");
         } else if (event.key.keysym.sym == SDLK_6) {
             std::cout << "Ray Tracing, only reflection" << std::endl;
-            //这个里面有折射和反射,但是我们加载材料选择不加载折射
+            // this code contains reflection and refraction, but we choose not to load refraction material
             window.clearPixels();
             renderRayTracedScene(window, "../cornell-box.obj", 2,"../material/onlyReflection.mtl",1);
         } else if(event.key.keysym.sym == SDLK_7) {
             std::cout << "Ray Tracing, only Refraction" << std::endl;
-            //这个里面有折射和反射,但是我们加载材料选择不加载反射
+            // this code contains reflection and refraction, but we choose not to load reflection material
             window.clearPixels();
             renderRayTracedScene(window, "../cornell-box.obj", 2,"../material/onlyRefraction.mtl",1);
         }else if(event.key.keysym.sym == SDLK_8) {
             std::cout << "Ray Tracing, combined reflection and refraction!" << std::endl;
+            // test reflection and refraction together!!
             window.clearPixels();
             renderRayTracedScene(window, "../cornell-box.obj", 2,"../material/cornell-box.mtl",1);
         }else if (event.key.keysym.sym == SDLK_9) {
-            //测试这个最好放在后面测，因为这个把camera改了，会导致其他camera不对
             std::cout << "Ray Tracing, rendering sphere by using flat shading, gouraud shading or phong shading !" << std::endl;
             cameraPosition = glm::vec3(0, 0.9, 1.9);
             window.clearPixels();
@@ -95,7 +95,7 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
             renderRayTracedSceneSoftShadow(window, "../cornell-box.obj", 2,
                                            "../material/cornell-box.mtl",1);
         }else if(event.key.keysym.sym == SDLK_x) {
-            // environment mapping, 环境映射
+            // environment mapping
             std::cout << "Environment mapping!" << std::endl;
             window.clearPixels();
             TextureMap frontTexture("../skybox/front.ppm");
@@ -108,10 +108,10 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
                     rightTexture, leftTexture, topTexture, bottomTexture, frontTexture, backTexture
             };
             cameraPosition = glm::vec3(0, 0, 0.5);
-            //这个球体不需要设置成mirror，因为我这个函数默认就模型全部是mirror
+            // we do not need to set this model to be a mirror
+            // because this function assume the model is a mirror
             renderRayTracedSceneForEnv(window, "../envsphere.obj", 0.4,textures,"../material/cornell-box.mtl");
         }else if(event.key.keysym.sym == SDLK_c){
-            //法线贴图
             std::cout << "Normal mapping!" << std::endl;
             window.clearPixels();
             TextureMap textureMap("../NormalMap/tex.ppm");
