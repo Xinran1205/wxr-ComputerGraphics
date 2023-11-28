@@ -1,12 +1,13 @@
 #include "SoftShadowRendering.h"
 
-//对于我们的一个intersection，他与多个点光源有多个shadowIntersection
+
+// for each intersection, it has multiple shadowIntersections with multiple light points
 float FlatShadingSoft(RayTriangleIntersection intersection, const std::vector<RayTriangleIntersection> &shadowIntersections,
                       const std::vector<glm::vec3> &lightPoints, float ambientLight) {
 
     float totalBrightness = 0.0f;
-    //遍历这个intersection与多个点光源的shadowIntersection，并且把所有的brightness加起来
-    //最后求平均就是这个intersection的brightness
+    // go through all the shadowIntersections and add up all the brightness
+    // at the end, we will get the average brightness, this is the brightness of the intersection
     for (size_t i = 0; i < lightPoints.size(); i++) {
         // Calculate brightness and specular intensity for each light point
         float brightness = calculateLighting(intersection.intersectionPoint,
@@ -37,7 +38,7 @@ float GouraudShadingSoft(RayTriangleIntersection intersection, const std::vector
                          const std::vector<glm::vec3> &lightPoints, float ambientLight){
     for (int i = 0; i < 3; i++) {
         glm::vec3 vertex = intersection.intersectedTriangle.vertices[i];
-        // 如果这个顶点已经计算过了，就不用再计算了
+        // if this vertex has been calculated before, skip it
         if (vertexBrightnessGlobal.find(vertex) != vertexBrightnessGlobal.end()){
             continue;
         }
@@ -46,32 +47,31 @@ float GouraudShadingSoft(RayTriangleIntersection intersection, const std::vector
         // calculate the diffuse lighting and specular lighting
         float totalBrightness = 0.0f;
 
-        // 对每个光源点计算漫反射和镜面反射
+        // for every light point, calculate the diffuse lighting and specular lighting
         for (size_t j = 0; j < lightPoints.size(); j++) {
             float brightness = calculateLighting(vertex, normal, lightPoints[j]);
             float specularIntensity = calculateSpecularLighting(vertex, cameraPosition, lightPoints[j], normal, shininess);
 
-            // 检查该顶点是否对于每个光源点都在阴影中
             if (shadowIntersections[j].distanceFromCamera < glm::length(lightPoints[j] - vertex) &&
                 shadowIntersections[j].triangleIndex != intersection.triangleIndex) {
-                brightness = ambientLight;  // 在阴影中，只考虑环境光
+                brightness = ambientLight;
             } else {
-                brightness += ambientLight;  // 不在阴影中，添加环境光
+                brightness += ambientLight;
             }
 
             totalBrightness += brightness + specularIntensity;
         }
 
-        // 结合平均漫反射和平均镜面反射得到最终顶点亮度
+        // combine the brightness from all light sources
         float averageBrightness = glm::clamp(totalBrightness / lightPoints.size(), 0.0f, 1.0f);
 
         vertexBrightnessGlobal[vertex] = averageBrightness;
     }
-    // 根据重心坐标插值出交点的brigtness
+
     glm::vec3 barycentricCoords = calculateBarycentricCoordinates(intersection.intersectionPoint,
                                                                   intersection.intersectedTriangle.vertices);
 
-    // interpolate the normal
+    // interpolate the brightness
     float ResultVertexBrightness =
             barycentricCoords.x * vertexBrightnessGlobal[intersection.intersectedTriangle.vertices[0]] +
             barycentricCoords.y * vertexBrightnessGlobal[intersection.intersectedTriangle.vertices[1]] +
@@ -84,7 +84,6 @@ float phongShadingSoft(RayTriangleIntersection intersection, const std::vector<R
     glm::vec3 normal0  = vertexNormals[intersection.intersectedTriangle.vertices[0]];
     glm::vec3 normal1  = vertexNormals[intersection.intersectedTriangle.vertices[1]];
     glm::vec3 normal2  = vertexNormals[intersection.intersectedTriangle.vertices[2]];
-    // calculateBarycentricCoordinates will return u, v, w
     glm::vec3 barycentricCoords = calculateBarycentricCoordinates(intersection.intersectionPoint, intersection.intersectedTriangle.vertices);
 
     // interpolate the normal
@@ -131,7 +130,7 @@ void renderRayTracedSceneSoftShadow(DrawingWindow &window, const std::string& fi
 
     std::cout << "Loaded " << triangles.size() << " triangles for ray tracing" << std::endl;
 
-    // Define your multi-point light source here
+    // Define multi-point light source
     std::vector<glm::vec3> lightPoints = {{0.01, 0.89, -0.2},{0.02,0.89,0},{0.03,0.89,0.1},
                                           {0.04,0.89,0.2},{0.05,0.89,0.3},{0.06,0.89,-0.1}};
     float ambientLight = 0.3f;  // ambient light intensity
@@ -147,7 +146,8 @@ void renderRayTracedSceneSoftShadow(DrawingWindow &window, const std::string& fi
 
             // If an intersection was found, color the pixel accordingly
             if (intersection.distanceFromCamera != std::numeric_limits<float>::infinity()) {
-                //这个地方很关键，这个判断是说如果我们从墙外面看，那么直接画颜色，要不然会有阴影,从墙背面看
+                // here is the key point, this judgement is to say that if we look from outside the wall,
+                // then draw the color directly with the ambientLight, otherwise there will be some shadows
                 if (glm::dot(rayDirection, intersection.intersectedTriangle.normal)>0) {
                     Colour colour = intersection.intersectedTriangle.colour;
                     float brightness = ambientLight;
@@ -160,6 +160,7 @@ void renderRayTracedSceneSoftShadow(DrawingWindow &window, const std::string& fi
                     // Initialize combined brightness
                     std::vector<RayTriangleIntersection> AllshadowIntersection;
                     // Iterate over each point light to calculate soft shadows
+                    // combined all shadowIntersections in a list
                     for (const auto& lightPoint : lightPoints) {
                         glm::vec3 shadowRay = glm::normalize(lightPoint - intersection.intersectionPoint);
                         RayTriangleIntersection shadowIntersection = getClosestIntersection(intersection.intersectionPoint + shadowRay * 0.002f, shadowRay, triangles);

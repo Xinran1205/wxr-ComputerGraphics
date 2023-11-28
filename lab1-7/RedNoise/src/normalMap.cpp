@@ -32,7 +32,7 @@ void renderRayTracedSceneNormal(DrawingWindow &window, const std::string& filena
                                 TextureMap &textureMap,const std::string& materialFilename) {
     // Load the triangles from the OBJ file.
     std::vector<ModelTriangle> triangles = loadOBJ(filename, 0.35,materialFilename);
-    //先手动设置三角形顶点的纹理坐标,一共就两个三角形
+    // Because my model only have two triangles, so I just hard code the texture points here
     triangles[0].texturePoints = {TexturePoint(80, 210), TexturePoint(200, 210), TexturePoint(200, 50)};
     triangles[1].texturePoints = {TexturePoint(80, 210), TexturePoint(200, 50), TexturePoint(80, 50)};
 
@@ -60,19 +60,20 @@ void renderRayTracedSceneNormal(DrawingWindow &window, const std::string& filena
 
             // If an intersection was found, color the pixel accordingly
             if (intersection.distanceFromCamera != std::numeric_limits<float>::infinity()) {
-                //这里这个颜色应该为这个点的纹理的颜色
-                //用重心坐标根据这个三角形的三个点的纹理坐标，插值出这个点的纹理坐标
+                // calculate the barycentric coordinates of the intersection point
                 glm::vec3 barycentricCoords = calculateBarycentricCoordinates(intersection.intersectionPoint,
                                                                               intersection.intersectedTriangle.vertices);
+                // interpolate the texture point coordinate by using the barycentric coordinates
                 TexturePoint intersectTexturePoints ={barycentricCoords.x * intersection.intersectedTriangle.texturePoints[0].x +
                                                       barycentricCoords.y * intersection.intersectedTriangle.texturePoints[1].x +
                                                       barycentricCoords.z * intersection.intersectedTriangle.texturePoints[2].x,
                                                       barycentricCoords.x * intersection.intersectedTriangle.texturePoints[0].y +
                                                       barycentricCoords.y * intersection.intersectedTriangle.texturePoints[1].y +
                                                         barycentricCoords.z * intersection.intersectedTriangle.texturePoints[2].y};
+                // this is the texture color get from the texture map
                 uint32_t packedColour = textureMap.pixels[int(intersectTexturePoints.y * textureMap.width + intersectTexturePoints.x)];
 
-                // this is the normal value get from the normal texture map
+                // this is the normal value get from the normal texture map(another file)
                 uint32_t normalVal = normalMap.pixels[int(intersectTexturePoints.y * normalMap.width + intersectTexturePoints.x)];
 
                 // extract the RGB value from the normal value
@@ -90,13 +91,14 @@ void renderRayTracedSceneNormal(DrawingWindow &window, const std::string& filena
                 RayTriangleIntersection shadowIntersection = getClosestIntersection(intersection.intersectionPoint + shadowRay * 0.002f,
                                                                                     shadowRay, triangles);
 
+                // use the texture normal to calculate the lighting
                 float combinedBrightness = FlatShadingNormal(intersection,shadowIntersection, sourceLight, ambientLight,normal);
 
-                // 解包
+                // get the previous colour value
                 glm::vec3 colour = glm::vec3((packedColour >> 16) & 0xFF, (packedColour >> 8) & 0xFF, packedColour & 0xFF);
-                // 应用光照强度到颜色
+                // apply the lighting to the colour
                 glm::vec3 litColour = colour * combinedBrightness;
-                // 重新打包颜色值
+                // repack the colour value
                 uint32_t rgbColour = (255 << 24) + (int(litColour.r) << 16) + (int(litColour.g) << 8) + int(litColour.b);
                 window.setPixelColour(x, y,rgbColour );
 

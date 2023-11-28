@@ -66,6 +66,7 @@ bool isInTheTriangle(CanvasTriangle triangle, CanvasPoint p) {
     return false;
 }
 
+// go through each pixel in the bounding box, if it is inside the triangle, draw it
 void drawFilledTriangleUsingBoundingBox (DrawingWindow &window, CanvasTriangle triangle, Colour colour) {
     std::vector<glm::vec2> boundingBox = findBoundingBox(triangle);
     int minX = boundingBox[0].x;

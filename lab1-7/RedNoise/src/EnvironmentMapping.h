@@ -14,7 +14,6 @@
 #include "RayTriangleIntersection.h"
 #include "HardShadowRendering.h"
 
-uint32_t sampleColourFromTextureMap(const TextureMap &textureMap, float u, float v);
 uint32_t getColourFromEnvironmentMap(const glm::vec3 &reflectionVector, const std::array<TextureMap, 6>& textures);
 void renderRayTracedSceneForEnv(DrawingWindow &window, const std::string& filename, float focalLength
                                 ,const std::array<TextureMap, 6>& textures,const std::string& materialFilename);

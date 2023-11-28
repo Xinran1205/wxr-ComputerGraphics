@@ -93,13 +93,11 @@ void renderRayTracedSceneForEnv(DrawingWindow &window, const std::string& filena
 
             // If an intersection was found, color the pixel accordingly
             if (intersection.distanceFromCamera != std::numeric_limits<float>::infinity()) {
-                //如果交点是镜面的
-                //我默认整个模型都是镜面的
-                //根据反射光的方向从环境贴图中采样颜色
+                // in this function, we assume the model is always all mirror
                 glm::vec3 reflectDir = glm::reflect(rayDirection, intersection.intersectedTriangle.normal);
+                // get the environment map colour according to the reflection vector
                 uint32_t rgbColour = getColourFromEnvironmentMap(reflectDir, textures);
                 window.setPixelColour(x, y, rgbColour);
-
             } else {
                 // No intersection found, set the pixel to the background color,
                 window.setPixelColour(x, y, 0);

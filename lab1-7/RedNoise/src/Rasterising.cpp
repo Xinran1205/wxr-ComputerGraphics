@@ -13,7 +13,8 @@ std::vector<std::vector<float>> initialiseDepthBuffer(int width, int height) {
 }
 
 //middle in Axis-Aligned Bounding Box (AABB)
-//这个函数可以不需要，因为我模型本来就在000
+//this function is calculate the middle point of the model
+//mostly model center is in 000 but sometimes it is not
 glm::vec3 calculateModelCenter(const std::vector<ModelTriangle>& triangles) {
     glm::vec3 minCoords = glm::vec3(std::numeric_limits<float>::max());
     glm::vec3 maxCoords = glm::vec3(std::numeric_limits<float>::lowest());
@@ -47,7 +48,7 @@ void renderPointCloud(DrawingWindow &window, const std::string& filename, float 
     float degree = 1.0f;
     float orbitRotationSpeed = degree * (M_PI / 180.0f);
 //    translate, this is just move the camera
-    cameraPosition;
+    cameraPosition = orbitCameraAroundY(cameraPosition, orbitRotationSpeed, ModelCenter);
 //    rotate, this will rotate the camera and let it look at the center of the model
     cameraOrientation = lookAt(ModelCenter);
 
@@ -57,13 +58,14 @@ void renderPointCloud(DrawingWindow &window, const std::string& filename, float 
         CanvasPoint projectedPoints[3];
         for (int i = 0; i < 3; i++) {
             projectedPoints[i] = getCanvasIntersectionPoint(cameraPosition, triangle.vertices[i], focalLength);
-            //这里可以直接这么赋值
-            //需要校验，如果不存在纹理坐标，就为0，如果有纹理坐标需要扩大大小
+
+            // here is to calculate the texture point coordinate by remapping the range of u and v to [0, width] and [0, height]
+            // if the texture point is not 0,0, then we need to expand the texture point coordinate
             if(triangle.texturePoints[i].x != 0 && triangle.texturePoints[i].y != 0){
                 projectedPoints[i].texturePoint.x = triangle.texturePoints[i].x*150+WIDTH / 2.0f;
                 projectedPoints[i].texturePoint.y = triangle.texturePoints[i].y*150+HEIGHT / 2.0f;
             }else{
-                // 初始化不需要纹理坐标的为0
+                // if the point do not have texture point, then we set the texture point to be 0,0
                 projectedPoints[i].texturePoint.x = 0;
                 projectedPoints[i].texturePoint.y = 0;
             }
@@ -118,6 +120,7 @@ void DrawWireframe(DrawingWindow &window, const std::string& filename, float foc
 }
 
 
+// The functions below are deprecated
 
 
 //This function is Deprecated, substitute by drawTextureTriangle

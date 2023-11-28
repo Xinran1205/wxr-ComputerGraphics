@@ -3,15 +3,17 @@
 
 
 
-// 这个变量是一对多的关系，一个顶点对应多个面法向量
+
+// this is a hashmap from vertex to a list of normals
+// one vertex can have multiple facet normals
 std::map<glm::vec3, std::vector<glm::vec3>, Vec3Comparator> vertexPlaneNormals;
 
 
 // return a hashmap from material name to colour
+// MaterialProperties is a struct that contains colour, isMirror and isGlass
 std::map<std::string, MaterialProperties> loadMaterials(const std::string& filename) {
-    // Map from material name to colour.
+    // Map from material name to the material properties.
     std::map<std::string, MaterialProperties> materials;
-//    std::map<std::string, Colour> materials;
     std::ifstream file(filename);
 
     if (!file.is_open()) {
@@ -28,11 +30,12 @@ std::map<std::string, MaterialProperties> loadMaterials(const std::string& filen
         auto tokens = split(line, ' ');
         if (tokens[0] == "newmtl") {
             currentMaterialName = tokens[1];
+            // here is very crucial!
             isMirror = false;  // Reset for each new material
             isGlass = false;
         } else if (tokens[0] == "mirror") {
-            isMirror = tokens[1] == "1";  // 如果标记为"1"，则设置为镜面
-            //这依赖于mtl文件，mtl中mirror一定要写在Kd之前
+            isMirror = tokens[1] == "1";  // if mirror is 1, then it is a mirror
+            // in the mtl file we must make sure that the mirror is before Kd
         }else if(tokens[0] == "glass"){
             isGlass = tokens[1] == "1";
         }else if (tokens[0] == "Kd"){
@@ -50,7 +53,7 @@ std::map<std::string, MaterialProperties> loadMaterials(const std::string& filen
 std::vector<ModelTriangle> loadOBJ(const std::string& filename, float scalingFactor, const std::string& materialName) {
     std::vector<ModelTriangle> triangles;
     std::vector<glm::vec3> vertices;
-    std::vector<TexturePoint> texturePoints; // 新增纹理坐标列表
+    std::vector<TexturePoint> texturePoints;
 
     // Open the file.
     std::ifstream file(filename);
@@ -59,7 +62,6 @@ std::vector<ModelTriangle> loadOBJ(const std::string& filename, float scalingFac
         return triangles;
     }
     // Load the materials from the .mtl file.
-//    std::map<std::string, Colour> palette = loadMaterials("../cornell-box.mtl");
     std::map<std::string, MaterialProperties> materialsProperties = loadMaterials(materialName);
     MaterialProperties currentMaterialProps;
 //    Colour currentColour;
@@ -82,37 +84,37 @@ std::vector<ModelTriangle> loadOBJ(const std::string& filename, float scalingFac
             TexturePoint texturePoint{stof(tokens[1]), stof(tokens[2])};
             texturePoints.push_back(texturePoint);
         } else if (tokens[0] == "f") {
-            std::array<glm::vec3, 3> triangleVertices;
-            std::array<TexturePoint, 3> triangleTexturePoints;  // 存储三角形的纹理坐标
+            std::array<glm::vec3, 3> triangleVertices;          // store the vertices of the triangle
+            std::array<TexturePoint, 3> triangleTexturePoints;  // store the texture points of three vertices of the triangle
 
-            // 解析面和纹理坐标
+            // construct each triangle
             for (int i = 0; i < 3; i++) {
                 std::vector<std::string> vertexTexturePair = split(tokens[i + 1], '/');
-                int vertexIndex = stoi(vertexTexturePair[0]) - 1;  // OBJ索引从1开始
+                int vertexIndex = stoi(vertexTexturePair[0]) - 1;  // OBJ index starts from 1
                 triangleVertices[i] = vertices[vertexIndex];
 
-                // 如果存在纹理坐标索引，才去解析它
+                // if this vertex has a texture coordinate
                 if (vertexTexturePair.size() > 1 && !vertexTexturePair[1].empty()) {
-                    int textureIndex = stoi(vertexTexturePair[1]) - 1; // OBJ索引从1开始
+                    int textureIndex = stoi(vertexTexturePair[1]) - 1; // OBJ index starts from 1
                     triangleTexturePoints[i] = texturePoints[textureIndex];
                 }
             }
 
-            // 计算三角形法线
+            // calculate the normal of this triangle
             glm::vec3 edge1 = triangleVertices[1] - triangleVertices[0];
             glm::vec3 edge2 = triangleVertices[2] - triangleVertices[0];
             glm::vec3 normal = glm::normalize(glm::cross(edge1, edge2));
 
-            // 创建三角形并设置顶点、纹理坐标和颜色
+            // create a triangle and set its properties
             ModelTriangle triangle(triangleVertices[0], triangleVertices[1], triangleVertices[2], currentMaterialProps.colour);
-            triangle.texturePoints = triangleTexturePoints; // 设置纹理坐标
-            triangle.normal = normal; // 设置法线
-            triangle.isMirror = currentMaterialProps.isMirror; // 设置是否为镜面
-            triangle.isGlass = currentMaterialProps.isGlass; // 设置是否为玻璃
+            triangle.texturePoints = triangleTexturePoints;
+            triangle.normal = normal;
+            triangle.isMirror = currentMaterialProps.isMirror;
+            triangle.isGlass = currentMaterialProps.isGlass;
             triangles.push_back(triangle);
         }
     }
-    // the bottom is for gouraud shading!!!
+    // the bottom is for gouraud shading and phong shading!!!
 
     // here calculate the normal for each vertex, put all the normals in a hashmap
     for (const ModelTriangle &triangle: triangles) {
@@ -131,7 +133,7 @@ std::vector<ModelTriangle> loadOBJ(const std::string& filename, float scalingFac
             sumNormals += n;
         }
         glm::vec3 averageNormal = glm::normalize(sumNormals / static_cast<float>(normals.size()));
-        //把这个平均法向量和顶点绑定起来
+        // bind the average normal to the vertex
         vertexNormals[vertex] = averageNormal;
     }
     return triangles;

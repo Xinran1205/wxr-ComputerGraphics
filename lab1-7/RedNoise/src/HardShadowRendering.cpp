@@ -5,14 +5,11 @@ float calculateLighting(const glm::vec3 &point, const glm::vec3 &normal, const g
     glm::vec3 toLight = lightSource - point;
     float distance = glm::length(toLight);
     float proximityBrightness = 7.0f / (5 * M_PI * distance * distance);
-
-
     glm::vec3 lightDirection = glm::normalize(toLight);
     glm::vec3 normalDirection = glm::normalize(normal);
     // cos(theta) = dot product of the normal and the light direction
     float dotProduct = glm::dot(normalDirection, lightDirection);
     float incidenceBrightness = std::max(dotProduct, 0.0f);
-//    float incidenceBrightness = std::abs(dotProduct);
     // combine the two brightness factors
     float combinedBrightness = proximityBrightness * incidenceBrightness;
     // clamp the combined brightness between 0 and 1
@@ -46,8 +43,8 @@ glm::vec3 calculateBarycentricCoordinates(const glm::vec3 &P, const std::array<g
 RayTriangleIntersection getClosestIntersection(const glm::vec3 &cameraPosition,
                                                const glm::vec3 &rayDirection, const std::vector<ModelTriangle> &triangles) {
     RayTriangleIntersection closestIntersection;
-    closestIntersection.distanceFromCamera = std::numeric_limits<float>::infinity(); // 初始化为最大值
-    float closestDistance = std::numeric_limits<float>::infinity(); // 初始化为最大值
+    closestIntersection.distanceFromCamera = std::numeric_limits<float>::infinity(); // initialize to infinity
+    float closestDistance = std::numeric_limits<float>::infinity(); // initialize to infinity
 
     // go through all the triangles and find the closest intersection
     for (size_t i = 0; i < triangles.size(); i++) {
@@ -76,7 +73,7 @@ RayTriangleIntersection getClosestIntersection(const glm::vec3 &cameraPosition,
 }
 
 glm::vec3 computeRayDirection(int screenWidth, int screenHeight, int x, int y, float focalLength, glm::mat3 cameraOrientation) {
-    // the camera is at (0, 0, 4), and the image plane is at z = 2
+    // the camera initially at (0, 0, 4), and the image plane is at z = 2
 
     float scale = 150.0f; // Adjust this factor to zoom in or out
 
@@ -111,8 +108,9 @@ float FlatShading(RayTriangleIntersection intersection, RayTriangleIntersection 
     float specularIntensity = calculateSpecularLighting(intersection.intersectionPoint, cameraPosition,
                                                         sourceLight, intersection.intersectedTriangle.normal, shininess);
 
-
-    if (shadowIntersection.distanceFromCamera < glm::length(sourceLight - intersection.intersectionPoint)&& shadowIntersection.triangleIndex != intersection.triangleIndex) {
+    if (shadowIntersection.distanceFromCamera < glm::length(sourceLight - intersection.intersectionPoint)&&
+    shadowIntersection.triangleIndex != intersection.triangleIndex) {
+        // if the intersection is in shadow, only use the ambient light
         brightness = ambientLight;
     } else {
         // if the intersection is not in shadow, combine the brightness with the ambient light
@@ -126,9 +124,10 @@ float FlatShading(RayTriangleIntersection intersection, RayTriangleIntersection 
 
 float GouraudShading(RayTriangleIntersection intersection, RayTriangleIntersection shadowIntersection,
                      const glm::vec3 &sourceLight, float ambientLight){
+    // calculate the brightness for each vertex
     for (int i = 0; i < 3; i++) {
         glm::vec3 vertex = intersection.intersectedTriangle.vertices[i];
-        // 如果这个顶点已经计算过了，就不用再计算了
+        // if we already calculated the brightness for this vertex, skip it
         if (vertexBrightnessGlobal.find(vertex) != vertexBrightnessGlobal.end()){
             continue;
         }
@@ -150,7 +149,7 @@ float GouraudShading(RayTriangleIntersection intersection, RayTriangleIntersecti
 
         vertexBrightnessGlobal[vertex] = combinedBrightness;
     }
-    // 根据重心坐标插值出交点的brigtness
+    // get the barycentric coordinates of the intersection point
     glm::vec3 barycentricCoords = calculateBarycentricCoordinates(intersection.intersectionPoint, intersection.intersectedTriangle.vertices);
 
     // interpolate the normal
@@ -163,10 +162,11 @@ float GouraudShading(RayTriangleIntersection intersection, RayTriangleIntersecti
 
 float phongShading(RayTriangleIntersection intersection, RayTriangleIntersection shadowIntersection,
                    const glm::vec3 &sourceLight, float ambientLight) {
+    // I have already cached the vertex normals in the loadOBJ function
     glm::vec3 normal0  = vertexNormals[intersection.intersectedTriangle.vertices[0]];
     glm::vec3 normal1  = vertexNormals[intersection.intersectedTriangle.vertices[1]];
     glm::vec3 normal2  = vertexNormals[intersection.intersectedTriangle.vertices[2]];
-    // calculateBarycentricCoordinates will return u, v, w
+    // get the barycentric coordinates of the intersection point
     glm::vec3 barycentricCoords = calculateBarycentricCoordinates(intersection.intersectionPoint, intersection.intersectedTriangle.vertices);
 
     // interpolate the normal
@@ -177,7 +177,7 @@ float phongShading(RayTriangleIntersection intersection, RayTriangleIntersection
 
     interpolatedNormal = glm::normalize(interpolatedNormal);
 
-    // phong shading
+    // phong shading, calculate the diffuse lighting and specular lighting by passing in the interpolated normal
     float brightness = calculateLighting(intersection.intersectionPoint, interpolatedNormal, sourceLight);
     float specularIntensity = calculateSpecularLighting(intersection.intersectionPoint, cameraPosition, sourceLight,
                                                         interpolatedNormal, shininess);
@@ -194,23 +194,25 @@ float phongShading(RayTriangleIntersection intersection, RayTriangleIntersection
     return combinedBrightness;
 }
 
-// 添加一个新的函数来处理反射光线的递归追踪
+// This function is to return the color of the reflected ray
 Colour traceReflectiveRay(const glm::vec3 &rayOrigin, const glm::vec3 &rayDirection, const std::vector<ModelTriangle> &triangles,
                           int depth, const glm::vec3 &sourceLight, float ambientLight) {
-    // 递归深度大于3就停止
+    // if the ray has been reflected more than 3 times, return black
     if (depth >= 3) {
         return Colour(0, 0, 0);
     }
 
     RayTriangleIntersection intersection = getClosestIntersection(rayOrigin, rayDirection, triangles);
-    //其实这个条件基本上走不进去，除非我有多个镜面
     if (intersection.intersectedTriangle.isMirror) {
+        // actually this condition is hard to be satisfied, unless I have multiple mirrors
+        // if the ray reflected by the mirror hits another mirror, it will recursively call the traceReflectiveRay function
         glm::vec3 reflectDir = glm::reflect(rayDirection, intersection.intersectedTriangle.normal);
-        glm::vec3 reflectOrigin = intersection.intersectionPoint + reflectDir * 0.002f; // 避免自我交叉
+        glm::vec3 reflectOrigin = intersection.intersectionPoint + reflectDir * 0.001f;
         return traceReflectiveRay(reflectOrigin, reflectDir, triangles, depth + 1, sourceLight, ambientLight);
     } else if(intersection.intersectedTriangle.isGlass){
-        //如果反射撞到玻璃上面，这个intersection就是和玻璃的交点
-
+        // this situation is very complex
+        // if the reflection ray hits the glass, then it will be refracted
+        // it will call the traceRefractiveRay function
         float indexOfRefraction = 1.6;
         glm::vec3 normal{};
         if (glm::dot(rayDirection, intersection.intersectedTriangle.normal)<0) {
@@ -219,20 +221,23 @@ Colour traceReflectiveRay(const glm::vec3 &rayOrigin, const glm::vec3 &rayDirect
             normal = intersection.intersectedTriangle.normal;
         }
         glm::vec3 refractDir = calculate_refracted_ray(rayDirection, normal, indexOfRefraction);
-        glm::vec3 refractOrigin = intersection.intersectionPoint + normal * 0.002f; // 避免自我交叉
+        glm::vec3 refractOrigin = intersection.intersectionPoint + normal * 0.001f; // avoid self-intersection
 
         Colour refractColour = traceRefractiveRay(refractOrigin, refractDir, triangles, 1,sourceLight,ambientLight);
         return refractColour;
     }else{
+        // this is the most common situation
+        // if the ray hits a non-mirror surface, calculate the brightness
         if (intersection.distanceFromCamera == std::numeric_limits<float>::infinity()) {
             return Colour(0, 0, 0);
         }
 
         glm::vec3 shadowRay = glm::normalize(sourceLight - intersection.intersectionPoint);
-        RayTriangleIntersection shadowIntersection = getClosestIntersection(intersection.intersectionPoint + shadowRay * 0.002f,
+        RayTriangleIntersection shadowIntersection = getClosestIntersection(intersection.intersectionPoint + shadowRay * 0.001f,
                                                                             shadowRay, triangles);
 
-        //这里是三个不同的shading方法，可以自己选择
+        // there are three different shading methods, you can choose any shading method
+        // no difference for cornell box, default is flat shading
 //                float combinedBrightness = phongShading(intersection,shadowIntersection, sourceLight, ambientLight);
 //                float combinedBrightness = GouraudShading(intersection,shadowIntersection, sourceLight, ambientLight);
         float combinedBrightness = FlatShading(intersection,shadowIntersection, sourceLight, ambientLight);
@@ -242,7 +247,7 @@ Colour traceReflectiveRay(const glm::vec3 &rayOrigin, const glm::vec3 &rayDirect
         colour.green *= combinedBrightness;
         colour.blue *= combinedBrightness;
 
-        return colour; // 返回交点的颜色
+        return colour;
     }
 }
 
@@ -264,63 +269,68 @@ glm::vec3 calculate_refracted_ray(const glm::vec3 &incident, const glm::vec3 &no
     }
 }
 
+
+// This function is to return the color of the refracted ray
 Colour traceRefractiveRay(const glm::vec3& refractOrigin,
                           const glm::vec3& refractDir, const std::vector<ModelTriangle>& triangles,
                           int depth, const glm::vec3 &sourceLight, float ambientLight) {
-    // 递归的基本情况：如果超过了最大递归深度，返回默认颜色（例如，背景颜色）
+    // if the ray has been refracted more than 240 times, return black
     if (depth > 240) {
-        return Colour(0, 0, 0); // 黑色或任何其他背景颜色
+        return Colour(0, 0, 0);
     }
 
-    // 在场景中找到折射光线与最近的交点
+    // get the closest intersection
     RayTriangleIntersection closestIntersection = getClosestIntersection(refractOrigin, refractDir, triangles);
 
-//     如果没有找到交点，返回背景颜色
+    // if the closest intersection is infinity, return the background color
     if (closestIntersection.distanceFromCamera == std::numeric_limits<float>::infinity()) {
-        return Colour(0, 0, 0); // 根据场景背景定义这个颜色
+        return Colour(0, 0, 0);
     }
 
-    // 假设我此时从交点往相同方向继续射，如果下面碰到的物体还是玻璃，说明我们在玻璃内部
+    // Here is very tricky, I calculate the next intersection point in advance to determine whether the ray is inside the glass
     glm::vec3 NextRefractOrigin = closestIntersection.intersectionPoint + closestIntersection.intersectedTriangle.normal * 0.001f;
     RayTriangleIntersection NextClosestIntersection = getClosestIntersection(NextRefractOrigin,
                                                                              refractDir, triangles);
     bool isInside = NextClosestIntersection.intersectedTriangle.isGlass;
-    //这个条件模拟的出玻璃时的情况
+    // if the current intersection is the glass and the next intersection is not in the glass
+    // then the ray is leaving the glass
     if (closestIntersection.intersectedTriangle.isGlass && !isInside) {
-        // 计算新的折射率
+        // because the ray is leaving the glass, we need to calculate the new refractive index
+        // which is the inverse of the current refractive index
         float newIndexOfRefraction = 1/1.3;
         glm::vec3 normal{};
+        // here, we must ensure that the cos(theta) between the normal and the refract ray is positive
         if (glm::dot(refractDir, closestIntersection.intersectedTriangle.normal)<0) {
             normal = -closestIntersection.intersectedTriangle.normal;
         }else{
             normal = closestIntersection.intersectedTriangle.normal;
         }
 
-        // 使用glm::refract计算折射方向
+        // use the glm::refract function to calculate the new refract ray
         glm::vec3 newRefractDir =calculate_refracted_ray(refractDir, normal, newIndexOfRefraction);
-
-        // 计算新的折射原点，稍微偏移以避免自我交叉
         glm::vec3 newRefractOrigin = closestIntersection.intersectionPoint + normal * 0.001f;
 
+        // find the final intersection point
         RayTriangleIntersection FinalClosestIntersection = getClosestIntersection(newRefractOrigin,
                                                                                  newRefractDir, triangles);
-        //如果这个新的交点是无穷远，说明没有新的交点，返回背景颜色
+        // if the final intersection is infinity, return the background color
         if (FinalClosestIntersection.distanceFromCamera == std::numeric_limits<float>::infinity()) {
-            // 如果没有新的交点，返回背景颜色
             return Colour(0, 0, 0);
         }
-        // 如果这个出玻璃后的交点是镜面的，发生反射
+        // if this final intersection is a mirror, then we need to call the traceReflectiveRay function
+        // this is very tricky here.
         if (FinalClosestIntersection.intersectedTriangle.isMirror){
             glm::vec3 reflectDir = glm::reflect(newRefractDir, FinalClosestIntersection.intersectedTriangle.normal);
-            glm::vec3 reflectOrigin = FinalClosestIntersection.intersectionPoint + reflectDir * 0.002f; // 避免自我交叉
+            glm::vec3 reflectOrigin = FinalClosestIntersection.intersectionPoint + reflectDir * 0.001f;
             Colour reflectColour = traceReflectiveRay(reflectOrigin, reflectDir, triangles, 1,sourceLight,ambientLight);
             return reflectColour;
         }
-        // 走到这说明最后打到一个物体上面
+        // if the code reaches here, it means that the final intersection is just a normal surface
         glm::vec3 shadowRay = glm::normalize(sourceLight - FinalClosestIntersection.intersectionPoint);
-        RayTriangleIntersection shadowIntersection = getClosestIntersection(FinalClosestIntersection.intersectionPoint + shadowRay * 0.002f,
+        RayTriangleIntersection shadowIntersection = getClosestIntersection(FinalClosestIntersection.intersectionPoint + shadowRay * 0.001f,
                                                                             shadowRay, triangles);
-        //这里是三个不同的shading方法，可以自己选择
+        // there are three different shading methods, you can choose any shading method
+        // no difference for cornell box, default is flat shading
 //                float combinedBrightness = phongShading(intersection,shadowIntersection, sourceLight, ambientLight);
 //                float combinedBrightness = GouraudShading(intersection,shadowIntersection, sourceLight, ambientLight);
         float combinedBrightness = FlatShading(FinalClosestIntersection,shadowIntersection, sourceLight, ambientLight);
@@ -330,15 +340,12 @@ Colour traceRefractiveRay(const glm::vec3& refractOrigin,
         colour.green *= combinedBrightness;
         colour.blue *= combinedBrightness;
 
-        return colour; // 返回交点的颜色
-
-//        // 递归追踪新的折射光线
-//        return traceRefractiveRay(newRefractOrigin, newRefractDir, triangles, depth + 1);
+        return colour;
     }else{
-        // 仍然在玻璃内
+        // in this case, because the next intersection is still in the glass
         glm::vec3 newRefractOrigin = closestIntersection.intersectionPoint + closestIntersection.intersectedTriangle.normal * 0.001f;
 
-        // 递归追踪新的折射光线
+        // so we need to recursively call the traceRefractiveRay function
         return traceRefractiveRay(newRefractOrigin, refractDir, triangles, depth + 1,sourceLight,ambientLight);
     }
 }
@@ -359,12 +366,12 @@ void renderRayTracedScene(DrawingWindow &window, const std::string& filename, fl
 
     std::cout << "Loaded " << triangles.size() << " triangles for ray tracing" << std::endl;
 
-//    glm::vec3 sourceLight = calculateLightSourcePosition();
 // if the file is the sphere, we should put the light source in front of the sphere
     glm::vec3 sourceLight;
     if (filename=="../sphere.obj"){
         sourceLight = glm::vec3(0.4, 0.4, 1.5);
     }else{
+        // this is the default light source position for the cornell box
         sourceLight = glm::vec3(0, 0.89, 0.1);
     }
     float ambientLight = 0.3f;  // ambient light intensity
@@ -380,10 +387,11 @@ void renderRayTracedScene(DrawingWindow &window, const std::string& filename, fl
 
             // If an intersection was found, color the pixel accordingly
             if (intersection.distanceFromCamera != std::numeric_limits<float>::infinity()) {
-                //如果交点是镜面的
+                // if the intersection is a mirror, then we need to calculate the reflected ray
                 if (intersection.intersectedTriangle.isMirror){
                     glm::vec3 reflectDir = glm::reflect(rayDirection, intersection.intersectedTriangle.normal);
-                    glm::vec3 reflectOrigin = intersection.intersectionPoint + reflectDir * 0.002f; // 避免自我交叉
+                    glm::vec3 reflectOrigin = intersection.intersectionPoint + reflectDir * 0.001f;
+                    // this is the recursive call
                     Colour reflectColour = traceReflectiveRay(reflectOrigin, reflectDir, triangles, 1,sourceLight,ambientLight);
                     uint32_t rgbColour = (255 << 24) |
                                          (int(reflectColour.red) << 16) |
@@ -392,16 +400,17 @@ void renderRayTracedScene(DrawingWindow &window, const std::string& filename, fl
                     window.setPixelColour(x, y, rgbColour);
 
                 }else if(intersection.intersectedTriangle.isGlass){
-                    // 如果交点是玻璃的，发生折射
-                    float indexOfRefraction = 1.3;
+                    // if the intersection is a glass, then we need to calculate the refracted ray
+                    float indexOfRefraction = 1.3; // the refractive index from air to glass
                     glm::vec3 normal{};
+                    // here is very tricky, we must ensure that the cos(theta) between the normal and the refract ray is positive
                     if (glm::dot(rayDirection, intersection.intersectedTriangle.normal)<0) {
                         normal = -intersection.intersectedTriangle.normal;
                     }else{
                         normal = intersection.intersectedTriangle.normal;
                     }
                     glm::vec3 refractDir = calculate_refracted_ray(rayDirection, normal, indexOfRefraction);
-                    glm::vec3 refractOrigin = intersection.intersectionPoint + normal * 0.001f; // 避免自我交叉
+                    glm::vec3 refractOrigin = intersection.intersectionPoint + normal * 0.001f;
 
                     Colour refractColour = traceRefractiveRay(refractOrigin, refractDir, triangles, 1,sourceLight,ambientLight);
                     uint32_t rgbColour = (255 << 24) |
@@ -409,8 +418,12 @@ void renderRayTracedScene(DrawingWindow &window, const std::string& filename, fl
                                          (int(refractColour.green) << 8) |
                                          int(refractColour.blue);
                     window.setPixelColour(x, y, rgbColour);
-                }else{//交点不是镜面的
-                    //这个地方很关键，这个判断是说如果我们从墙外面看，那么直接画颜色，要不然会有阴影
+                }else{
+                    // if the intersection is not a mirror or a glass
+                    // it means the intersection is just a normal surface
+
+                    // here is very crucial, this condition is to say that if we look from outside the wall,
+                    // then draw the color directly with the ambientLight, otherwise there will be some shadows
                     if (glm::dot(rayDirection, intersection.intersectedTriangle.normal)>0) {
                         Colour colour = intersection.intersectedTriangle.colour;
                         float brightness = ambientLight;
@@ -421,10 +434,10 @@ void renderRayTracedScene(DrawingWindow &window, const std::string& filename, fl
                         window.setPixelColour(x, y, rgbColour);
                     }else{
                         glm::vec3 shadowRay = glm::normalize(sourceLight - intersection.intersectionPoint);
-                        RayTriangleIntersection shadowIntersection = getClosestIntersection(intersection.intersectionPoint + shadowRay * 0.002f,
+                        RayTriangleIntersection shadowIntersection = getClosestIntersection(intersection.intersectionPoint + shadowRay * 0.001f,
                                                                                             shadowRay, triangles);
 
-                        //这里是三个不同的shading方法，可以自己选择
+                        //there are three different shading methods, you can choose any shading method
                         float combinedBrightness;
                         if(signalForShading==1){
                             combinedBrightness = FlatShading(intersection,shadowIntersection, sourceLight, ambientLight);

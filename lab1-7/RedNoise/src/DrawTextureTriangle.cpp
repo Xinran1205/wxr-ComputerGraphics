@@ -1,6 +1,7 @@
 #include <algorithm>
 #include "DrawTextureTriangle.h"
 
+// this is the function to draw the triangle
 void drawTextureTriangle (DrawingWindow &window, CanvasTriangle triangle,Colour colour,TextureMap &textureMap) {
     std :: cout << "drawFilledTriangle is called" << std::endl;
     // print out the triangle
@@ -67,7 +68,8 @@ void drawTexturePartTriangle (DrawingWindow &window, CanvasTriangle triangle, Co
 
 //        int x_start = pointsBetweenMiddleAndPeak[i - yStart].x-1;
 //        int x_end = pointsBetweenExtraAndPeak[i - yStart].x+1;
-        //横向插值出每个点的深度和纹理坐标
+
+        // Interpolate the depth and texture coordinates of each point horizontally
         std :: vector<CanvasPoint> XlineCanvasPoint = interpolateCanvasPoint(pointsBetweenMiddleAndPeak[i - yStart],
                                                                              pointsBetweenExtraAndPeak[i - yStart],
                                                                              x_end - x_start + 1);
@@ -102,7 +104,9 @@ std::vector<TexturePoint> interpolateTexturePoints(TexturePoint start, TexturePo
 
 
 
-// week3的代码
+
+// week3 code
+// This function is deprecated
 void drawTextureTriangle(DrawingWindow &window, CanvasTriangle triangle,TextureMap &textureMap) {
     CanvasPoint bottom = triangle[0];
     CanvasPoint middle = triangle[1];
