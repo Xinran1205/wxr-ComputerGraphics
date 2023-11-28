@@ -1,5 +1,7 @@
 #include "FilledTriangleByUsingBoundingBox.h"
 
+// this class is not used, it is just an additional way to draw a filled triangle
+
 // return a list of 2D vectors that are the bounding box of the triangle
 std::vector<glm::vec2> findBoundingBox(CanvasTriangle triangle) {
     std::vector<glm::vec2> result;
@@ -35,6 +37,7 @@ glm::vec2 calculateTheLine(CanvasPoint p1, CanvasPoint p2) {
 }
 
 // return true if the point is inside the triangle
+// using the cross product to determine if the point is inside the triangle
 bool isInTheTriangle(CanvasTriangle triangle, CanvasPoint p) {
     //line V01
     glm::vec2 line1 = calculateTheLine(triangle[0], triangle[1]);

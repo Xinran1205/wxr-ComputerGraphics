@@ -20,7 +20,5 @@ struct MaterialProperties {
 
 std::map<std::string, MaterialProperties> loadMaterials(const std::string& filename);
 
-std::vector<ModelTriangle> loadOBJ(const std::string& filename, float scalingFactor);
-
-std::vector<ModelTriangle> loadTexOBJ(const std::string& filename, float scalingFactor);
+std::vector<ModelTriangle> loadOBJ(const std::string& filename, float scalingFactor, const std::string& materialName);
 #endif //REDNOISE_LOADFILE_H

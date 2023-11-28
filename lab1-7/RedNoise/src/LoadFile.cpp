@@ -47,7 +47,7 @@ std::map<std::string, MaterialProperties> loadMaterials(const std::string& filen
     return materials;
 }
 
-std::vector<ModelTriangle> loadOBJ(const std::string& filename, float scalingFactor) {
+std::vector<ModelTriangle> loadOBJ(const std::string& filename, float scalingFactor, const std::string& materialName) {
     std::vector<ModelTriangle> triangles;
     std::vector<glm::vec3> vertices;
     std::vector<TexturePoint> texturePoints; // 新增纹理坐标列表
@@ -60,7 +60,7 @@ std::vector<ModelTriangle> loadOBJ(const std::string& filename, float scalingFac
     }
     // Load the materials from the .mtl file.
 //    std::map<std::string, Colour> palette = loadMaterials("../cornell-box.mtl");
-    std::map<std::string, MaterialProperties> materialsProperties = loadMaterials("../cornell-box.mtl");
+    std::map<std::string, MaterialProperties> materialsProperties = loadMaterials(materialName);
     MaterialProperties currentMaterialProps;
 //    Colour currentColour;
     std::string line;

@@ -1,13 +1,10 @@
-//
-// Created by dell on 2023/11/25.
-//
 #include "HardShadowRendering.h"
 
 // calculate diffuse lighting
 float calculateLighting(const glm::vec3 &point, const glm::vec3 &normal, const glm::vec3 &lightSource) {
     glm::vec3 toLight = lightSource - point;
     float distance = glm::length(toLight);
-    float proximityBrightness = 3.0f / (5 * M_PI * distance * distance);
+    float proximityBrightness = 7.0f / (5 * M_PI * distance * distance);
 
 
     glm::vec3 lightDirection = glm::normalize(toLight);
@@ -33,16 +30,15 @@ glm::vec3 calculateBarycentricCoordinates(const glm::vec3 &P, const std::array<g
     glm::vec3 AP = P - A;
     glm::vec3 BP = P - B;
 
-    // 计算三角形ABC的面积的两倍（使用叉乘）
+    // according to the formula: area = 1/2 * |AB x AC x sin(theta)|
     float areaABC = glm::length(glm::cross(AB, AC));
-    // 计算P相对于三角形顶点的子三角形的面积的两倍
     float areaPBC = glm::length(glm::cross(BP, BC));
     float areaPCA = glm::length(glm::cross(AP, AC));
+    float areaPAB = glm::length(glm::cross(AP, AB));
 
-    // 重心坐标是子三角形面积除以整个三角形面积
     float u = areaPBC / areaABC;
     float v = areaPCA / areaABC;
-    float w = 1.0f - u - v;
+    float w = areaPAB / areaABC;
 
     return glm::vec3(u, v, w);
 }
@@ -272,9 +268,9 @@ Colour traceRefractiveRay(const glm::vec3& refractOrigin,
                           const glm::vec3& refractDir, const std::vector<ModelTriangle>& triangles,
                           int depth, const glm::vec3 &sourceLight, float ambientLight) {
     // 递归的基本情况：如果超过了最大递归深度，返回默认颜色（例如，背景颜色）
-//    if (depth > 5) {
-//        return Colour(0, 0, 0); // 黑色或任何其他背景颜色
-//    }
+    if (depth > 240) {
+        return Colour(0, 0, 0); // 黑色或任何其他背景颜色
+    }
 
     // 在场景中找到折射光线与最近的交点
     RayTriangleIntersection closestIntersection = getClosestIntersection(refractOrigin, refractDir, triangles);
@@ -348,9 +344,10 @@ Colour traceRefractiveRay(const glm::vec3& refractOrigin,
 }
 
 
-void renderRayTracedScene(DrawingWindow &window, const std::string& filename, float focalLength) {
+void renderRayTracedScene(DrawingWindow &window, const std::string& filename, float focalLength,const std::string& materialFilename,
+                          const int signalForShading) {
     // Load the triangles from the OBJ file.
-    std::vector<ModelTriangle> triangles = loadOBJ(filename, 0.35);
+    std::vector<ModelTriangle> triangles = loadOBJ(filename, 0.35,materialFilename);
 
     glm::vec3 ModelCenter = calculateModelCenter(triangles);
     float degree = 1.0f;
@@ -363,7 +360,13 @@ void renderRayTracedScene(DrawingWindow &window, const std::string& filename, fl
     std::cout << "Loaded " << triangles.size() << " triangles for ray tracing" << std::endl;
 
 //    glm::vec3 sourceLight = calculateLightSourcePosition();
-    glm::vec3 sourceLight = glm::vec3(0, 0.8, 0);
+// if the file is the sphere, we should put the light source in front of the sphere
+    glm::vec3 sourceLight;
+    if (filename=="../sphere.obj"){
+        sourceLight = glm::vec3(0.4, 0.4, 1.5);
+    }else{
+        sourceLight = glm::vec3(0, 0.89, 0.1);
+    }
     float ambientLight = 0.3f;  // ambient light intensity
 
     // Loop over each pixel on the image plane
@@ -407,21 +410,40 @@ void renderRayTracedScene(DrawingWindow &window, const std::string& filename, fl
                                          int(refractColour.blue);
                     window.setPixelColour(x, y, rgbColour);
                 }else{//交点不是镜面的
-                    glm::vec3 shadowRay = glm::normalize(sourceLight - intersection.intersectionPoint);
-                    RayTriangleIntersection shadowIntersection = getClosestIntersection(intersection.intersectionPoint + shadowRay * 0.002f,
-                                                                                        shadowRay, triangles);
+                    //这个地方很关键，这个判断是说如果我们从墙外面看，那么直接画颜色，要不然会有阴影
+                    if (glm::dot(rayDirection, intersection.intersectedTriangle.normal)>0) {
+                        Colour colour = intersection.intersectedTriangle.colour;
+                        float brightness = ambientLight;
+                        uint32_t rgbColour = (255 << 24) |
+                                             (int(brightness*colour.red) << 16) |
+                                             (int(brightness*colour.green) << 8) |
+                                             int(brightness*colour.blue);
+                        window.setPixelColour(x, y, rgbColour);
+                    }else{
+                        glm::vec3 shadowRay = glm::normalize(sourceLight - intersection.intersectionPoint);
+                        RayTriangleIntersection shadowIntersection = getClosestIntersection(intersection.intersectionPoint + shadowRay * 0.002f,
+                                                                                            shadowRay, triangles);
 
-                    //这里是三个不同的shading方法，可以自己选择
-//                float combinedBrightness = phongShading(intersection,shadowIntersection, sourceLight, ambientLight);
-//                float combinedBrightness = GouraudShading(intersection,shadowIntersection, sourceLight, ambientLight);
-                    float combinedBrightness = FlatShading(intersection,shadowIntersection, sourceLight, ambientLight);
+                        //这里是三个不同的shading方法，可以自己选择
+                        float combinedBrightness;
+                        if(signalForShading==1){
+                            combinedBrightness = FlatShading(intersection,shadowIntersection, sourceLight, ambientLight);
+                        }else if(signalForShading==2) {
+                            combinedBrightness = GouraudShading(intersection, shadowIntersection, sourceLight,ambientLight);
+                        }else if(signalForShading==3){
+                            combinedBrightness = phongShading(intersection, shadowIntersection, sourceLight,ambientLight);
+                        }else{
+                            std::cout << "Please enter the correct signal for shading" << std::endl;
+                            exit(1);
+                        }
+                        Colour colour = intersection.intersectedTriangle.colour;
+                        uint32_t rgbColour = (255 << 24) |
+                                             (int(combinedBrightness * colour.red) << 16) |
+                                             (int(combinedBrightness * colour.green) << 8) |
+                                             int(combinedBrightness * colour.blue);
+                        window.setPixelColour(x, y, rgbColour);
 
-                    Colour colour = intersection.intersectedTriangle.colour;
-                    uint32_t rgbColour = (255 << 24) |
-                                         (int(combinedBrightness * colour.red) << 16) |
-                                         (int(combinedBrightness * colour.green) << 8) |
-                                         int(combinedBrightness * colour.blue);
-                    window.setPixelColour(x, y, rgbColour);
+                    }
                 }
             } else {
                 // No intersection found, set the pixel to the background color,

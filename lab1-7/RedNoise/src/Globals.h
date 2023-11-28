@@ -1,7 +1,3 @@
-//
-// Created by dell on 2023/11/6.
-//
-
 #ifndef GLOBALS_H
 #define GLOBALS_H
 

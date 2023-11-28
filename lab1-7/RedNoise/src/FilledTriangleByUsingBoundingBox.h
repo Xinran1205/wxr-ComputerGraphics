@@ -1,6 +1,3 @@
-// This class is not for this course
-// It is just another way to draw a filled triangle by using bounding box
-// I just want to try it
 #ifndef REDNOISE_FILLEDTRIANGLEBYUSINGBOUNDINGBOX_H
 #define REDNOISE_FILLEDTRIANGLEBYUSINGBOUNDINGBOX_H
 
@@ -10,6 +7,7 @@
 #include <glm/glm.hpp>
 #include "DrawingWindow.h"
 #include "ModelTriangle.h"
+//this class is not used, it is another way to draw a filled triangle by using bounding box
 
 std::vector<glm::vec2> findBoundingBox(CanvasTriangle triangle);
 

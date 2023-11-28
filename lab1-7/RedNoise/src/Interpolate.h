@@ -15,7 +15,6 @@ void drawTheGreyScale(DrawingWindow &window);
 
 void draw(DrawingWindow &window);
 
-void drawLineBresenham(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour colour);
 
 void drawLineInterpolation(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour colour);
 

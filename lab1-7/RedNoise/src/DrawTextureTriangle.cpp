@@ -62,9 +62,11 @@ void drawTexturePartTriangle (DrawingWindow &window, CanvasTriangle triangle, Co
             std :: swap(pointsBetweenMiddleAndPeak[i - yStart], pointsBetweenExtraAndPeak[i - yStart]);
         }
 
-        int x_start = pointsBetweenMiddleAndPeak[i - yStart].x-1;
-        int x_end = pointsBetweenExtraAndPeak[i - yStart].x+1;
+        int x_start = pointsBetweenMiddleAndPeak[i - yStart].x;
+        int x_end = pointsBetweenExtraAndPeak[i - yStart].x;
 
+//        int x_start = pointsBetweenMiddleAndPeak[i - yStart].x-1;
+//        int x_end = pointsBetweenExtraAndPeak[i - yStart].x+1;
         //横向插值出每个点的深度和纹理坐标
         std :: vector<CanvasPoint> XlineCanvasPoint = interpolateCanvasPoint(pointsBetweenMiddleAndPeak[i - yStart],
                                                                              pointsBetweenExtraAndPeak[i - yStart],

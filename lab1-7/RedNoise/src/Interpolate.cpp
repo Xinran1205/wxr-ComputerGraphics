@@ -12,6 +12,7 @@ std::vector<float> interpolateSingleFloats(float from,float to, int numberOfValu
     return result;
 }
 
+// very important, this function is used to interpolate the canvas point
 std::vector<CanvasPoint> interpolateCanvasPoint(CanvasPoint from, CanvasPoint to, int numberOfValues){
     std :: vector<CanvasPoint> result;
     if (numberOfValues <= 1) {

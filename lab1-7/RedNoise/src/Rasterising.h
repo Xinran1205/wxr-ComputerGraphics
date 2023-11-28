@@ -25,9 +25,11 @@
 std::vector<std::vector<float>> initialiseDepthBuffer(int width, int height);
 glm::vec3 calculateModelCenter(const std::vector<ModelTriangle>& triangles);
 glm::mat3 lookAt(glm::vec3 target);
-void drawFilledTriangle (DrawingWindow &window, CanvasTriangle triangle, Colour colour);
 CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 vertexPosition, float focalLength);
+void renderPointCloud(DrawingWindow &window, const std::string& filename, float focalLength,
+                      TextureMap &textureMap,const std::string& materialFilename);
+void DrawWireframe(DrawingWindow &window, const std::string& filename, float focalLength,const std::string& materialFilename);
+
+//these two function is Deprecated, substitute by drawTextureTriangle
+void drawFilledTriangle (DrawingWindow &window, CanvasTriangle triangle, Colour colour);
 void drawPartTriangle (DrawingWindow &window, CanvasTriangle triangle, Colour colour);
-void renderPointCloud(DrawingWindow &window, const std::string& filename, float focalLength, TextureMap &textureMap);
-
-

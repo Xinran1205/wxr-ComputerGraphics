@@ -53,7 +53,11 @@ add_executable(RedNoise
         src/HardShadowRendering.h
         src/HardShadowRendering.cpp
         src/EnvironmentMapping.h
-        src/EnvironmentMapping.cpp)
+        src/EnvironmentMapping.cpp
+        src/normalMap.h
+        src/normalMap.cpp
+        src/SoftShadowRendering.h
+        src/SoftShadowRendering.cpp)
 
 if (MSVC)
     target_compile_options(RedNoise
