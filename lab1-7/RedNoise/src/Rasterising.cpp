@@ -46,8 +46,8 @@ void renderPointCloud(DrawingWindow &window, const std::string& filename, float 
     glm::vec3 ModelCenter = calculateModelCenter(triangles);
     float degree = 1.0f;
     float orbitRotationSpeed = degree * (M_PI / 180.0f);
-    //translate, this is just move the camera
-    cameraPosition = orbitCameraAroundY(cameraPosition, orbitRotationSpeed, ModelCenter);
+//    translate, this is just move the camera
+    cameraPosition;
 //    rotate, this will rotate the camera and let it look at the center of the model
     cameraOrientation = lookAt(ModelCenter);
 

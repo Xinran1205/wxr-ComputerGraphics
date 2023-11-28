@@ -23,31 +23,7 @@
 
 void handleEvent(SDL_Event event, DrawingWindow &window) {
     if (event.type == SDL_KEYDOWN) {
-        if (event.key.keysym.sym == SDLK_i) { // Pitch up
-            float degree = 1.0f;
-            float orbitRotationSpeed = degree * (M_PI / 180.0f);
-            //translate, this is just move the camera
-            cameraPosition = orbitCameraAroundX(cameraPosition, orbitRotationSpeed, glm::vec3(0, 0, 0));
-            cameraOrientation = lookAt(glm::vec3(0, 0, 0));
-        } else if (event.key.keysym.sym == SDLK_k) { // Pitch down
-            float degree = 1.0f;
-            float orbitRotationSpeed = degree * (M_PI / 180.0f);
-            //translate, this is just move the camera
-            cameraPosition = orbitCameraAroundXInverse(cameraPosition, orbitRotationSpeed, glm::vec3(0, 0, 0));
-            cameraOrientation = lookAt(glm::vec3(0, 0, 0));
-        } else if (event.key.keysym.sym == SDLK_j) { // Yaw left
-            float degree = 1.0f;
-            float orbitRotationSpeed = degree * (M_PI / 180.0f);
-            //translate, this is just move the camera
-            cameraPosition = orbitCameraAroundY(cameraPosition, orbitRotationSpeed, glm::vec3(0, 0, 0));
-            cameraOrientation = lookAt(glm::vec3(0, 0, 0));
-        } else if (event.key.keysym.sym == SDLK_l) { // Yaw right
-            float degree = 1.0f;
-            float orbitRotationSpeed = degree * (M_PI / 180.0f);
-            //translate, this is just move the camera
-            cameraPosition = orbitCameraAroundYInverse(cameraPosition, orbitRotationSpeed, glm::vec3(0, 0, 0));
-            cameraOrientation = lookAt(glm::vec3(0, 0, 0));
-        } else if (event.key.keysym.sym == SDLK_1) {
+        if (event.key.keysym.sym == SDLK_1) {
             std::cout << "random triangle" << std::endl;
             CanvasPoint p1(rand() % (window.width - 1), rand() % (window.height - 1));
             CanvasPoint p2(rand() % (window.width - 1), rand() % (window.height - 1));
@@ -113,12 +89,12 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
             renderRayTracedScene(window, "../sphere.obj", 1,"../material/sphere.mtl",1);
 //            renderRayTracedScene(window, "../sphere.obj", 1,"../material/sphere.mtl",2);
 //            renderRayTracedScene(window, "../sphere.obj", 1,"../material/sphere.mtl",3);
-        }else if(event.key.keysym.sym == SDLK_a){
+        }else if(event.key.keysym.sym == SDLK_z){
             std::cout << "Soft shadow!" << std::endl;
             window.clearPixels();
             renderRayTracedSceneSoftShadow(window, "../cornell-box.obj", 2,
                                            "../material/cornell-box.mtl",1);
-        }else if(event.key.keysym.sym == SDLK_b) {
+        }else if(event.key.keysym.sym == SDLK_x) {
             // environment mapping, 环境映射
             std::cout << "Environment mapping!" << std::endl;
             window.clearPixels();
@@ -141,10 +117,65 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
             TextureMap textureMap("../NormalMap/tex.ppm");
             renderRayTracedSceneNormal(window, "../NormalMap/NormalMap.obj", 2,
                                        textureMap,"../material/cornell-box.mtl");
-        }
-        else if (event.type == SDL_MOUSEBUTTONDOWN) {
-            window.savePPM("output.ppm");
-            window.saveBMP("output.bmp");
+
+
+            // below this line all key events are for camera control
+        }else if (event.key.keysym.sym == SDLK_i) { // Pitch up
+            std::cout << "Pitch up" << std::endl;
+            float degree = 1.0f;
+            float orbitRotationSpeed = degree * (M_PI / 180.0f);
+            // Orbit camera around X-axis at a defined speed.
+            cameraPosition = orbitCameraAroundX(cameraPosition, orbitRotationSpeed, glm::vec3(0, 0, 0));
+            cameraOrientation = lookAt(glm::vec3(0, 0, 0));
+        } else if (event.key.keysym.sym == SDLK_k) { // Pitch down
+            std::cout << "Pitch down" << std::endl;
+            float degree = 1.0f;
+            float orbitRotationSpeed = degree * (M_PI / 180.0f);
+            // Orbit camera in the reverse direction around X-axis at a defined speed.
+            cameraPosition = orbitCameraAroundXInverse(cameraPosition, orbitRotationSpeed, glm::vec3(0, 0, 0));
+            cameraOrientation = lookAt(glm::vec3(0, 0, 0));
+        } else if (event.key.keysym.sym == SDLK_j) { // Yaw left
+            std::cout << "Yaw left" << std::endl;
+            float degree = 1.0f;
+            float orbitRotationSpeed = degree * (M_PI / 180.0f);
+            // Orbit camera around Y-axis at a defined speed.
+            cameraPosition = orbitCameraAroundY(cameraPosition, orbitRotationSpeed, glm::vec3(0, 0, 0));
+            cameraOrientation = lookAt(glm::vec3(0, 0, 0));
+        } else if (event.key.keysym.sym == SDLK_l) { // Yaw right
+            std::cout << "Yaw right" << std::endl;
+            float degree = 1.0f;
+            float orbitRotationSpeed = degree * (M_PI / 180.0f);
+            // Orbit camera in the reverse direction around Y-axis at a defined speed.
+            cameraPosition = orbitCameraAroundYInverse(cameraPosition, orbitRotationSpeed, glm::vec3(0, 0, 0));
+            cameraOrientation = lookAt(glm::vec3(0, 0, 0));
+        } else if (event.key.keysym.sym == SDLK_w){
+            std::cout << "move camera towards" << std::endl;
+            cameraPosition = cameraPosition + glm::vec3(0, 0, -0.1);
+            cameraOrientation = lookAt(glm::vec3(0, 0, 0));
+        }else if (event.key.keysym.sym == SDLK_s){
+            std::cout << "move camera backwards" << std::endl;
+            cameraPosition = cameraPosition + glm::vec3(0, 0, 0.1);
+            cameraOrientation = lookAt(glm::vec3(0, 0, 0));
+        }else if (event.key.keysym.sym == SDLK_a) {
+            std::cout << "move camera left" << std::endl;
+            cameraPosition = cameraPosition + glm::vec3(-0.1, 0, 0);
+            cameraOrientation = lookAt(glm::vec3(0, 0, 0));
+        }else if (event.key.keysym.sym == SDLK_d) {
+            std::cout << "move camera right" << std::endl;
+            cameraPosition = cameraPosition + glm::vec3(0.1, 0, 0);
+            cameraOrientation = lookAt(glm::vec3(0, 0, 0));
+        }else if (event.key.keysym.sym == SDLK_q) {
+            std::cout << "move camera up" << std::endl;
+            cameraPosition = cameraPosition + glm::vec3(0, 0.1, 0);
+            cameraOrientation = lookAt(glm::vec3(0, 0, 0));
+        }else if (event.key.keysym.sym == SDLK_e) {
+            std::cout << "move camera down" << std::endl;
+            cameraPosition = cameraPosition + glm::vec3(0, -0.1, 0);
+            cameraOrientation = lookAt(glm::vec3(0, 0, 0));
+        }else if (event.key.keysym.sym == SDLK_g) {
+            std::cout << "mouse button down, save image!" << std::endl;
+            window.savePPM("../Frames/output100.ppm");
+            window.saveBMP("../Frames/output100.bmp");
         }
     }
 }
