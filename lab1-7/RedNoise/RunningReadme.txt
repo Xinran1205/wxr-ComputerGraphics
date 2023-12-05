@@ -1,4 +1,5 @@
 How to run this project
+(I put the makefile in the build folder, because I use relative path to include the header files and load materials, so please run the makefile in the build folder)
 1. cd build
 2. make
 3. ./RedNoise
