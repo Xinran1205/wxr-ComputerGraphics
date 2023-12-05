@@ -357,10 +357,10 @@ void renderRayTracedScene(DrawingWindow &window, const std::string& filename, fl
     std::vector<ModelTriangle> triangles = loadOBJ(filename, 0.35,materialFilename);
 
     glm::vec3 ModelCenter = calculateModelCenter(triangles);
-    float degree = 1.0f;
-    float orbitRotationSpeed = degree * (M_PI / 180.0f);
-    // Translate the camera
-    cameraPosition = orbitCameraAroundY(cameraPosition, orbitRotationSpeed, ModelCenter);
+//    float degree = 1.0f;
+//    float orbitRotationSpeed = degree * (M_PI / 180.0f);
+//    // Translate the camera
+//    cameraPosition = orbitCameraAroundY(cameraPosition, orbitRotationSpeed, ModelCenter);
     // Rotate the camera to look at the model center
     cameraOrientation = lookAt(ModelCenter);
 

@@ -16,10 +16,14 @@
 #include "EnvironmentMapping.h"
 #include "normalMap.h"
 #include "SoftShadowRendering.h"
+#include <iomanip>
+#include <sstream>
 
 #define WIDTH 320
 #define HEIGHT 240
 
+int counter = 0;
+bool isDefaultMode = true;
 
 void handleEvent(SDL_Event event, DrawingWindow &window) {
     if (event.type == SDL_KEYDOWN) {
@@ -86,9 +90,9 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
             cameraPosition = glm::vec3(0, 0.9, 1.9);
             window.clearPixels();
             // signalForShading = 1,2,3 represent flat shading, gouraud shading, phong shading
-            renderRayTracedScene(window, "../sphere.obj", 1,"../material/sphere.mtl",1);
+//            renderRayTracedScene(window, "../sphere.obj", 1,"../material/sphere.mtl",1);
 //            renderRayTracedScene(window, "../sphere.obj", 1,"../material/sphere.mtl",2);
-//            renderRayTracedScene(window, "../sphere.obj", 1,"../material/sphere.mtl",3);
+            renderRayTracedScene(window, "../sphere.obj", 1,"../material/sphere.mtl",3);
         }else if(event.key.keysym.sym == SDLK_z){
             std::cout << "Soft shadow!" << std::endl;
             window.clearPixels();
@@ -174,8 +178,14 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
             cameraOrientation = lookAt(glm::vec3(0, 0, 0));
         }else if (event.key.keysym.sym == SDLK_g) {
             std::cout << "mouse button down, save image!" << std::endl;
-            window.savePPM("../Frames/output100.ppm");
-            window.saveBMP("../Frames/output100.bmp");
+
+            std::ostringstream filenameStream;
+            filenameStream << "../Frames/" << std::setfill('0') << std::setw(5) << counter;
+            std::string filename = filenameStream.str();
+
+            window.savePPM(filename + ".ppm");
+            window.saveBMP(filename + ".bmp");
+            counter++;
         }
     }
 }
@@ -187,6 +197,13 @@ int main(int argc, char *argv[]) {
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
+        // this is default mode, we can change it by pressing key 1-9 and z,x,c to choose other mode
+        if (isDefaultMode){
+            std::cout << "Ray Tracing, combined reflection and refraction!" << std::endl;
+            window.clearPixels();
+            renderRayTracedScene(window, "../cornell-box.obj", 2,"../material/cornell-box.mtl",1);
+            isDefaultMode = false;
+        }
 		window.renderFrame();
 	}
 	return 0;
