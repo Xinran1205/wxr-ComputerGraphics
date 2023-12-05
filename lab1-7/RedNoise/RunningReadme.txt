@@ -4,6 +4,8 @@ How to run this project
 2. make
 3. ./RedNoise
 
+(if there is no makefile in the build folder, please create a build folder and cd in it and use "cmake .." and it will create the makefile)
+
 Mode description
 keypress 1:     random triangle
 keypress 2:     draw filled triangle
