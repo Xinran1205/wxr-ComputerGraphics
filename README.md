@@ -1,6 +1,6 @@
 # Computer Graphics Project
 
-This project is an experimental application showcasing the rendering of a Cornell Box using computer graphics techniques. We have employed a variety of rendering methods, such as rasterization and ray tracing, to achieve different visual effects. Moreover, the project supports a diverse range of materials and objects, along with flexible camera movement controls, providing users with a comprehensive platform to explore the principles and technologies of computer graphics.
+This project is an experimental application showcasing the rendering of a Cornell Box using computer graphics techniques. I have employed a variety of rendering methods, such as rasterization and ray tracing, to achieve different visual effects. Moreover, the project supports a diverse range of materials and objects, along with flexible camera movement controls, providing users with a comprehensive platform to explore the principles and technologies of computer graphics.
 
 ## Getting Started
 This document provides instructions on how to compile and run the project, details on interacting with the application via keyboard inputs to explore different computer graphics modes, and information on camera controls.
